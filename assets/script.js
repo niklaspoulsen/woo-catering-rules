@@ -5,16 +5,21 @@ jQuery(function ($) {
         if ($(this).hasClass('hasDatepicker')) return;
         $(this).datepicker({
           dateFormat: 'dd/mm/yy',
-          firstDay: 1
+          firstDay: 1,
+          beforeShow: function () {
+            setTimeout(function () {
+              $('#ui-datepicker-div').css('z-index', 100000);
+            }, 0);
+          }
         });
       });
 
-      $('#wcr-add-date-row').on('click', function () {
+      $('#wcr-add-date-row').off('click').on('click', function () {
         $('#wcr-closed-dates-list').append($('#wcr-date-row-template').html());
         initAdminDatepickers();
       });
 
-      $(document).on('click', '.wcr-remove-date', function () {
+      $(document).off('click.wcrRemoveDate').on('click.wcrRemoveDate', '.wcr-remove-date', function () {
         const rows = $('#wcr-closed-dates-list .wcr-date-row');
         if (rows.length <= 1) {
           rows.find('input').val('');
@@ -117,6 +122,15 @@ jQuery(function ($) {
     $timeSelect.html(buildTimeOptions($dateInput.val(), current));
   }
 
+  function syncAllDateAndTime(dateValue, timeValue) {
+    $('[name="wcr_delivery_date"]').val(dateValue);
+    $('[name="wcr_delivery_time"]').each(function () {
+      $(this).html(buildTimeOptions(dateValue, timeValue));
+      if (timeValue) $(this).val(timeValue);
+    });
+    $('#wcr-open-modal small').text((dateValue || '') + (timeValue ? ' ' + timeValue : ''));
+  }
+
   function initFrontendDatepickers() {
     if (typeof wcrRules === 'undefined') return;
 
@@ -130,6 +144,11 @@ jQuery(function ($) {
         firstDay: 1,
         minDate: 0,
         beforeShowDay: beforeShowDay,
+        beforeShow: function () {
+          setTimeout(function () {
+            $('#ui-datepicker-div').css('z-index', 100000);
+          }, 0);
+        },
         onSelect: function () {
           $(this).trigger('change');
         }
@@ -160,11 +179,20 @@ jQuery(function ($) {
   initFrontendDatepickers();
 
   $(document).on('change', '[name="wcr_delivery_date"]', function () {
+    const dateValue = $(this).val();
     const $wrap = $(this).closest('form, .wcr-box');
     const $time = $wrap.find('[name="wcr_delivery_time"]').first();
+
     if ($time.length) {
       refreshTimeSelect($(this), $time);
+      syncAllDateAndTime(dateValue, $time.val());
     }
+  });
+
+  $(document).on('change', '[name="wcr_delivery_time"]', function () {
+    const $wrap = $(this).closest('form, .wcr-box');
+    const dateValue = $wrap.find('[name="wcr_delivery_date"]').first().val();
+    syncAllDateAndTime(dateValue, $(this).val());
   });
 
   $(document).on('click', '.wcr-overlay, .wcr-close', function () {
@@ -192,5 +220,9 @@ jQuery(function ($) {
     try {
       localStorage.setItem('wcr_delivery_saved', 'yes');
     } catch (e) {}
+
+    const dateValue = $(this).find('[name="wcr_delivery_date"]').val();
+    const timeValue = $(this).find('[name="wcr_delivery_time"]').val();
+    syncAllDateAndTime(dateValue, timeValue);
   });
 });

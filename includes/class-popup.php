@@ -6,6 +6,7 @@ class WCR_Popup {
     public function __construct() {
         add_action('wp_enqueue_scripts', [$this, 'assets']);
         add_action('wp_footer', [$this, 'render']);
+        add_action('wp_footer', [$this, 'render_floating_button']);
         add_action('woocommerce_before_cart', [$this, 'cart_box']);
         add_action('woocommerce_before_checkout_form', [$this, 'checkout_box']);
         add_shortcode('cor_delivery_summary', [$this, 'shortcode_summary']);
@@ -36,9 +37,9 @@ class WCR_Popup {
         ]);
     }
 
-    private function time_options($date_value) {
+    private function time_options($date_value, $selected_value = '') {
         $ymd = WCR_Session::date_to_ymd($date_value);
-        $selected = WCR_Session::get_session('wcr_delivery_time');
+        $selected = $selected_value ? $selected_value : WCR_Session::get_session('wcr_delivery_time');
         $options = '<option value="">Vælg tidspunkt</option>';
 
         if (!$ymd) return $options;
@@ -64,20 +65,21 @@ class WCR_Popup {
 
     private function render_editor($button_text = 'Opdater levering') {
         $date = WCR_Session::get_session('wcr_delivery_date');
+        $time = WCR_Session::get_session('wcr_delivery_time');
         ?>
         <div class="wcr-box">
             <h3>Leveringstid</h3>
             <p>Valget gælder for hele ordren.</p>
 
             <p>
-                <label for="wcr_delivery_date"><strong>Dato</strong></label><br>
-                <input type="text" id="wcr_delivery_date" name="wcr_delivery_date" class="wcr-datepicker" value="<?php echo esc_attr($date); ?>" placeholder="dd/mm/yyyy" autocomplete="off">
+                <label for="wcr_delivery_date_inline"><strong>Dato</strong></label><br>
+                <input type="text" id="wcr_delivery_date_inline" name="wcr_delivery_date" class="wcr-datepicker" value="<?php echo esc_attr($date); ?>" placeholder="dd/mm/yyyy" autocomplete="off">
             </p>
 
             <p>
-                <label for="wcr_delivery_time"><strong>Tid</strong></label><br>
-                <select id="wcr_delivery_time" name="wcr_delivery_time" class="wcr-time-select">
-                    <?php echo $this->time_options($date); ?>
+                <label for="wcr_delivery_time_inline"><strong>Tid</strong></label><br>
+                <select id="wcr_delivery_time_inline" name="wcr_delivery_time" class="wcr-time-select">
+                    <?php echo $this->time_options($date, $time); ?>
                 </select>
             </p>
 
@@ -92,6 +94,7 @@ class WCR_Popup {
         if (!is_shop() && !is_product() && !is_cart() && !is_checkout()) return;
 
         $date = WCR_Session::get_session('wcr_delivery_date');
+        $time = WCR_Session::get_session('wcr_delivery_time');
         $saved = WCR_Session::get_session('wcr_delivery_saved') === 'yes';
         ?>
         <div id="wcr-popup" class="<?php echo $saved ? '' : 'is-open'; ?>">
@@ -103,18 +106,41 @@ class WCR_Popup {
                 <h2>Vælg leveringstid</h2>
 
                 <form method="post" class="wcr-form">
-                    <label>Dato</label>
-                    <input type="text" name="wcr_delivery_date" class="wcr-datepicker" value="<?php echo esc_attr($date); ?>" placeholder="dd/mm/yyyy" autocomplete="off">
+                    <label for="wcr_modal_delivery_date">Dato</label>
+                    <input
+                        type="text"
+                        id="wcr_modal_delivery_date"
+                        name="wcr_delivery_date"
+                        class="wcr-datepicker"
+                        value="<?php echo esc_attr($date); ?>"
+                        placeholder="dd/mm/yyyy"
+                        autocomplete="off"
+                    >
 
-                    <label>Tid</label>
-                    <select name="wcr_delivery_time" class="wcr-time-select">
-                        <?php echo $this->time_options($date); ?>
+                    <label for="wcr_modal_delivery_time">Tid</label>
+                    <select id="wcr_modal_delivery_time" name="wcr_delivery_time" class="wcr-time-select">
+                        <?php echo $this->time_options($date, $time); ?>
                     </select>
 
                     <button type="submit" name="wcr_save_delivery" value="1" class="wcr-primary-button">Færdig</button>
                 </form>
             </div>
         </div>
+        <?php
+    }
+
+    public function render_floating_button() {
+        if (!is_shop() && !is_product() && !is_cart() && !is_checkout()) return;
+
+        $date = WCR_Session::get_session('wcr_delivery_date');
+        $time = WCR_Session::get_session('wcr_delivery_time');
+
+        if (!$date && !$time) return;
+        ?>
+        <button type="button" id="wcr-open-modal" class="wcr-floating-button">
+            Ændr levering<br>
+            <small><?php echo esc_html(trim($date . ' ' . $time)); ?></small>
+        </button>
         <?php
     }
 
