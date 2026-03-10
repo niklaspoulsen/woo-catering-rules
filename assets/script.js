@@ -1,42 +1,45 @@
 jQuery(function ($) {
   function initAdminDatepickers() {
-    if (typeof wcrAdmin !== 'undefined' && wcrAdmin.isAdmin) {
-      $('.wcr-datepicker').each(function () {
-        if ($(this).hasClass('hasDatepicker')) {
-          $(this).datepicker('destroy');
+    if (typeof wcrAdmin === 'undefined' || !wcrAdmin.isAdmin) return;
+
+    $('.wcr-datepicker').each(function () {
+      const $input = $(this);
+
+      if ($input.hasClass('hasDatepicker')) {
+        $input.datepicker('destroy');
+      }
+
+      $input.datepicker({
+        dateFormat: 'dd/mm/yy',
+        firstDay: 1,
+        minDate: 0,
+        showAnim: '',
+        beforeShow: function () {
+          setTimeout(function () {
+            $('#ui-datepicker-div').css({
+              zIndex: 100000,
+              position: 'absolute'
+            });
+          }, 0);
         }
-
-        $(this).datepicker({
-          dateFormat: 'dd/mm/yy',
-          firstDay: 1,
-          showAnim: '',
-          beforeShow: function () {
-            setTimeout(function () {
-              $('#ui-datepicker-div').css({
-                zIndex: 100000,
-                position: 'absolute'
-              });
-            }, 0);
-          }
-        });
       });
+    });
 
-      $('#wcr-add-date-row').off('click').on('click', function () {
-        $('#wcr-closed-dates-list').append($('#wcr-date-row-template').html());
-        initAdminDatepickers();
+    $('#wcr-add-date-row').off('click').on('click', function () {
+      $('#wcr-closed-dates-list').append($('#wcr-date-row-template').html());
+      initAdminDatepickers();
+    });
+
+    $(document)
+      .off('click.wcrRemoveDate')
+      .on('click.wcrRemoveDate', '.wcr-remove-date', function () {
+        const rows = $('#wcr-closed-dates-list .wcr-date-row');
+        if (rows.length <= 1) {
+          rows.find('input').val('');
+          return;
+        }
+        $(this).closest('.wcr-date-row').remove();
       });
-
-      $(document)
-        .off('click.wcrRemoveDate')
-        .on('click.wcrRemoveDate', '.wcr-remove-date', function () {
-          const rows = $('#wcr-closed-dates-list .wcr-date-row');
-          if (rows.length <= 1) {
-            rows.find('input').val('');
-            return;
-          }
-          $(this).closest('.wcr-date-row').remove();
-        });
-    }
   }
 
   function parseDateString(str) {
@@ -153,46 +156,50 @@ jQuery(function ($) {
     }
   }
 
+  function bindDatepicker($input) {
+    if ($input.hasClass('hasDatepicker')) {
+      $input.datepicker('destroy');
+    }
+
+    $input.datepicker({
+      dateFormat: 'dd/mm/yy',
+      firstDay: 1,
+      minDate: 0,
+      showAnim: '',
+      beforeShowDay: beforeShowDay,
+      beforeShow: function (input, inst) {
+        setTimeout(function () {
+          $('#ui-datepicker-div')
+            .css({
+              zIndex: 100000,
+              position: 'absolute'
+            })
+            .appendTo('body');
+        }, 0);
+      },
+      onSelect: function () {
+        $(this).trigger('change');
+      }
+    });
+
+    $input.off('mousedown.wcr').on('mousedown.wcr', function (e) {
+      e.stopPropagation();
+    });
+
+    $input.off('click.wcr').on('click.wcr', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        $(this).datepicker('show');
+      } catch (err) {}
+    });
+  }
+
   function initFrontendDatepickers() {
     if (typeof wcrRules === 'undefined') return;
 
     $('.wcr-datepicker').each(function () {
-      const $input = $(this);
-
-      if ($input.hasClass('hasDatepicker')) {
-        $input.datepicker('destroy');
-      }
-
-      $input.datepicker({
-        dateFormat: 'dd/mm/yy',
-        firstDay: 1,
-        minDate: 0,
-        showAnim: '',
-        beforeShowDay: beforeShowDay,
-        beforeShow: function () {
-          setTimeout(function () {
-            $('#ui-datepicker-div').css({
-              zIndex: 100000,
-              position: 'absolute'
-            });
-          }, 0);
-        },
-        onSelect: function () {
-          $(this).trigger('change');
-        }
-      });
-
-      $input.off('focus.wcr click.wcr').on('focus.wcr click.wcr', function () {
-        try {
-          $(this).datepicker('show');
-          setTimeout(function () {
-            $('#ui-datepicker-div').css({
-              zIndex: 100000,
-              position: 'absolute'
-            });
-          }, 0);
-        } catch (e) {}
-      });
+      bindDatepicker($(this));
     });
 
     $('.wcr-form, .wcr-box').each(function () {
@@ -215,6 +222,7 @@ jQuery(function ($) {
   function closeModal() {
     $('#wcr-popup').removeClass('is-open');
     $('body').removeClass('wcr-modal-open');
+    $('#ui-datepicker-div').hide();
   }
 
   initAdminDatepickers();
@@ -239,6 +247,10 @@ jQuery(function ($) {
 
   $(document).on('click', '.wcr-overlay, .wcr-close', function () {
     closeModal();
+  });
+
+  $(document).on('mousedown', '.wcr-modal, #ui-datepicker-div', function (e) {
+    e.stopPropagation();
   });
 
   $(document).on('click', '#wcr-open-modal, [data-wcr-open-modal="1"]', function () {

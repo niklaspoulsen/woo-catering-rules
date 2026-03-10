@@ -53,6 +53,7 @@
   box-sizing: border-box;
   background: #fff;
   margin-bottom: 16px;
+  cursor: pointer;
 }
 
 .wcr-primary-button {
@@ -128,10 +129,7 @@ body.wcr-modal-open {
   opacity: 0.35 !important;
 }
 
-#ui-datepicker-div {
-  z-index: 100000 !important;
-}
-
+#ui-datepicker-div,
 .ui-datepicker {
   z-index: 100000 !important;
 }

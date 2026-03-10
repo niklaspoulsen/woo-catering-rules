@@ -81,6 +81,7 @@ class WCR_Popup {
                     value="<?php echo esc_attr($date); ?>"
                     placeholder="dd/mm/yyyy"
                     autocomplete="off"
+                    readonly
                 >
             </p>
 
@@ -125,6 +126,7 @@ class WCR_Popup {
                         value="<?php echo esc_attr($date); ?>"
                         placeholder="dd/mm/yyyy"
                         autocomplete="off"
+                        readonly
                     >
 
                     <label for="wcr_modal_delivery_time">Tid</label>
