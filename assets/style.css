@@ -1,22 +1,142 @@
-#wcr-popup{
-position:fixed;
-inset:0;
-display:flex;
-align-items:center;
-justify-content:center;
-z-index:9999;
+#wcr-popup {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
 }
 
-.wcr-overlay{
-position:absolute;
-inset:0;
-background:rgba(0,0,0,.6);
+#wcr-popup.is-open {
+  display: flex;
 }
 
-.wcr-modal{
-background:white;
-padding:30px;
-border-radius:10px;
-width:420px;
-position:relative;
+.wcr-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .6);
+}
+
+.wcr-modal {
+  background: #fff;
+  padding: 30px;
+  border-radius: 20px;
+  width: min(92vw, 720px);
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 20px 50px rgba(0,0,0,.2);
+}
+
+.wcr-modal h2 {
+  font-size: 42px;
+  line-height: 1.05;
+  margin: 0 0 24px;
+  font-weight: 800;
+}
+
+.wcr-modal label {
+  display: block;
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.wcr-modal input[type="text"],
+.wcr-modal select,
+.wcr-box input[type="text"],
+.wcr-box select {
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid #d1d5db;
+  border-radius: 16px;
+  padding: 0 18px;
+  font-size: 22px;
+  box-sizing: border-box;
+  background: #fff;
+  margin-bottom: 16px;
+}
+
+.wcr-primary-button {
+  width: 100%;
+  min-height: 62px;
+  border: 0;
+  border-radius: 14px;
+  font-size: 22px;
+  cursor: pointer;
+  background: #111827;
+  color: #fff;
+}
+
+.wcr-close {
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  border: 0;
+  background: none;
+  font-size: 42px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+body.wcr-modal-open {
+  overflow: hidden;
+}
+
+.wcr-box {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid #ddd;
+  background: #fafafa;
+}
+
+.wcr-floating-button {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9997;
+  border: 0;
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  padding: 12px 14px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.2);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.wcr-floating-button small {
+  color: #d1d5db;
+}
+
+.wcr-date-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 10px;
+}
+
+.wcr-date-input {
+  width: 180px;
+}
+
+.wcr-hours-table th,
+.wcr-hours-table td {
+  vertical-align: middle;
+}
+
+.wcr-closed-day a,
+.wcr-closed-weekday a {
+  opacity: .35 !important;
+}
+
+@media (max-width: 700px) {
+  .wcr-modal h2 {
+    font-size: 28px;
+  }
+
+  .wcr-modal input[type="text"],
+  .wcr-modal select,
+  .wcr-box input[type="text"],
+  .wcr-box select {
+    font-size: 18px;
+  }
 }

@@ -3,20 +3,30 @@ if (!defined('ABSPATH')) exit;
 
 class WCR_Order {
 
-function __construct(){
+    public function __construct() {
+        add_action('woocommerce_checkout_create_order', [$this, 'save'], 10, 2);
+        add_action('woocommerce_admin_order_data_after_billing_address', [$this, 'admin_meta']);
+    }
 
-add_action('woocommerce_checkout_create_order',[$this,'save'],10,2);
+    public function save($order) {
+        $date = WCR_Session::get_session('wcr_delivery_date');
+        $time = WCR_Session::get_session('wcr_delivery_time');
 
-}
+        if ($date) {
+            $order->update_meta_data('_delivery_date', $date);
+        }
 
-function save($order){
+        if ($time) {
+            $order->update_meta_data('_delivery_time', $time);
+        }
+    }
 
-$date=WC()->session->get('wcr_delivery_date');
-$time=WC()->session->get('wcr_delivery_time');
+    public function admin_meta($order) {
+        $date = $order->get_meta('_delivery_date');
+        $time = $order->get_meta('_delivery_time');
 
-$order->update_meta_data('_delivery_date',$date);
-$order->update_meta_data('_delivery_time',$time);
-
-}
-
+        if ($date || $time) {
+            echo '<p><strong>Levering:</strong><br>' . esc_html(trim($date . ' ' . $time)) . '</p>';
+        }
+    }
 }
