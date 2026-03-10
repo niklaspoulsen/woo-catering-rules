@@ -1,16 +1,15 @@
 <?php
-
 if (!defined('ABSPATH')) exit;
 
 class WCR_Session {
 
-public function __construct(){
+function __construct(){
 
 add_action('init', [$this,'capture']);
 
 }
 
-public function capture(){
+function capture(){
 
 if(!function_exists('WC')) return;
 

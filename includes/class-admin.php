@@ -1,29 +1,28 @@
 <?php
-
 if (!defined('ABSPATH')) exit;
 
 class WCR_Admin {
 
-public function __construct(){
+function __construct(){
 
-add_action('admin_menu', [$this,'menu']);
+add_action('admin_menu',[$this,'menu']);
 
 }
 
-public function menu(){
+function menu(){
 
 add_submenu_page(
 'woocommerce',
 'Catering Rules',
 'Catering Rules',
 'manage_options',
-'wcr-settings',
+'wcr',
 [$this,'page']
 );
 
 }
 
-public function page(){
+function page(){
 
 ?>
 
@@ -31,21 +30,13 @@ public function page(){
 
 <h1>Catering regler</h1>
 
-<p>Her kan du styre lukkedage.</p>
-
 <form method="post">
+
+<h2>Lukkedage</h2>
 
 <textarea name="wcr_closed_days" style="width:400px;height:200px;"></textarea>
 
-<p>
-
-<button class="button button-primary">
-
-Gem
-
-</button>
-
-</p>
+<p><button class="button button-primary">Gem</button></p>
 
 </form>
 
