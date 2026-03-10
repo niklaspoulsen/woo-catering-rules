@@ -4,7 +4,7 @@
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 99990;
+  z-index: 9000;
 }
 
 #wcr-popup.is-open {
@@ -23,7 +23,7 @@
   border-radius: 20px;
   width: min(92vw, 720px);
   position: relative;
-  z-index: 99991;
+  z-index: 9001;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
 }
 
@@ -93,7 +93,7 @@ body.wcr-modal-open {
   position: fixed;
   right: 18px;
   bottom: 18px;
-  z-index: 99989;
+  z-index: 8999;
   border: 0;
   border-radius: 10px;
   background: #111827;
@@ -131,7 +131,7 @@ body.wcr-modal-open {
 
 #ui-datepicker-div,
 .ui-datepicker {
-  z-index: 100000 !important;
+  z-index: 999999 !important;
 }
 
 @media (max-width: 700px) {

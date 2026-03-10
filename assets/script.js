@@ -16,10 +16,12 @@ jQuery(function ($) {
         showAnim: '',
         beforeShow: function () {
           setTimeout(function () {
-            $('#ui-datepicker-div').css({
-              zIndex: 100000,
-              position: 'absolute'
-            });
+            $('#ui-datepicker-div')
+              .appendTo('body')
+              .css({
+                zIndex: 999999,
+                position: 'absolute'
+              });
           }, 0);
         }
       });
@@ -167,14 +169,15 @@ jQuery(function ($) {
       minDate: 0,
       showAnim: '',
       beforeShowDay: beforeShowDay,
-      beforeShow: function (input, inst) {
+      beforeShow: function () {
         setTimeout(function () {
           $('#ui-datepicker-div')
+            .appendTo('body')
             .css({
-              zIndex: 100000,
+              zIndex: 999999,
               position: 'absolute'
             })
-            .appendTo('body');
+            .show();
         }, 0);
       },
       onSelect: function () {
@@ -182,13 +185,17 @@ jQuery(function ($) {
       }
     });
 
-    $input.off('mousedown.wcr').on('mousedown.wcr', function (e) {
-      e.stopPropagation();
-    });
-
     $input.off('click.wcr').on('click.wcr', function (e) {
       e.preventDefault();
       e.stopPropagation();
+
+      $('#ui-datepicker-div')
+        .appendTo('body')
+        .css({
+          zIndex: 999999,
+          position: 'absolute'
+        });
+
       try {
         $(this).datepicker('show');
       } catch (err) {}
@@ -213,10 +220,26 @@ jQuery(function ($) {
     });
   }
 
+  function rebindPopupDatepickers() {
+    $('#wcr-popup .wcr-datepicker').each(function () {
+      bindDatepicker($(this));
+    });
+  }
+
   function openModal() {
     $('#wcr-popup').addClass('is-open');
     $('body').addClass('wcr-modal-open');
-    initFrontendDatepickers();
+
+    rebindPopupDatepickers();
+
+    setTimeout(function () {
+      $('#ui-datepicker-div')
+        .appendTo('body')
+        .css({
+          zIndex: 999999,
+          position: 'absolute'
+        });
+    }, 50);
   }
 
   function closeModal() {
@@ -249,7 +272,11 @@ jQuery(function ($) {
     closeModal();
   });
 
-  $(document).on('mousedown', '.wcr-modal, #ui-datepicker-div', function (e) {
+  $(document).on('mousedown', '.wcr-modal', function (e) {
+    e.stopPropagation();
+  });
+
+  $(document).on('mousedown', '#ui-datepicker-div', function (e) {
     e.stopPropagation();
   });
 
