@@ -14,7 +14,7 @@
 .wcr-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, .6);
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .wcr-modal {
@@ -24,7 +24,7 @@
   width: min(92vw, 720px);
   position: relative;
   z-index: 99991;
-  box-shadow: 0 20px 50px rgba(0,0,0,.2);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
 }
 
 .wcr-modal h2 {
@@ -98,7 +98,7 @@ body.wcr-modal-open {
   background: #111827;
   color: #fff;
   padding: 12px 14px;
-  box-shadow: 0 10px 25px rgba(0,0,0,.2);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
   cursor: pointer;
   line-height: 1.2;
 }
@@ -125,10 +125,14 @@ body.wcr-modal-open {
 
 .wcr-closed-day a,
 .wcr-closed-weekday a {
-  opacity: .35 !important;
+  opacity: 0.35 !important;
 }
 
 #ui-datepicker-div {
+  z-index: 100000 !important;
+}
+
+.ui-datepicker {
   z-index: 100000 !important;
 }
 

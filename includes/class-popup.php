@@ -73,7 +73,15 @@ class WCR_Popup {
 
             <p>
                 <label for="wcr_delivery_date_inline"><strong>Dato</strong></label><br>
-                <input type="text" id="wcr_delivery_date_inline" name="wcr_delivery_date" class="wcr-datepicker" value="<?php echo esc_attr($date); ?>" placeholder="dd/mm/yyyy" autocomplete="off">
+                <input
+                    type="text"
+                    id="wcr_delivery_date_inline"
+                    name="wcr_delivery_date"
+                    class="wcr-datepicker"
+                    value="<?php echo esc_attr($date); ?>"
+                    placeholder="dd/mm/yyyy"
+                    autocomplete="off"
+                >
             </p>
 
             <p>
@@ -84,7 +92,9 @@ class WCR_Popup {
             </p>
 
             <p>
-                <button type="submit" class="button" name="wcr_save_delivery" value="1"><?php echo esc_html($button_text); ?></button>
+                <button type="submit" class="button" name="wcr_save_delivery" value="1">
+                    <?php echo esc_html($button_text); ?>
+                </button>
             </p>
         </div>
         <?php
@@ -122,7 +132,9 @@ class WCR_Popup {
                         <?php echo $this->time_options($date, $time); ?>
                     </select>
 
-                    <button type="submit" name="wcr_save_delivery" value="1" class="wcr-primary-button">Færdig</button>
+                    <button type="submit" name="wcr_save_delivery" value="1" class="wcr-primary-button">
+                        Færdig
+                    </button>
                 </form>
             </div>
         </div>
