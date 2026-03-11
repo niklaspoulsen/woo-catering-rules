@@ -53,6 +53,23 @@ class WCR_Session {
         return '';
     }
 
+    public static function native_to_display_date($date) {
+        $date = trim((string) $date);
+        if (!$date) return '';
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m)) {
+            if (checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+                return sprintf('%02d/%02d/%04d', (int) $m[3], (int) $m[2], (int) $m[1]);
+            }
+        }
+
+        return '';
+    }
+
+    public static function display_to_native_date($date) {
+        return self::date_to_ymd($date);
+    }
+
     public static function valid_time($time) {
         return (bool) preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $time);
     }
@@ -94,7 +111,16 @@ class WCR_Session {
         if (!function_exists('WC')) return;
 
         if (isset($_POST['wcr_delivery_date'])) {
-            self::set_session('wcr_delivery_date', sanitize_text_field(wp_unslash($_POST['wcr_delivery_date'])));
+            $raw_date = sanitize_text_field(wp_unslash($_POST['wcr_delivery_date']));
+
+            $display_date = '';
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw_date)) {
+                $display_date = self::native_to_display_date($raw_date);
+            } else {
+                $display_date = $raw_date;
+            }
+
+            self::set_session('wcr_delivery_date', $display_date);
         }
 
         if (isset($_POST['wcr_delivery_time'])) {
