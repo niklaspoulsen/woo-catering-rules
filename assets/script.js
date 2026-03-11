@@ -94,7 +94,6 @@ jQuery(function ($) {
     const displayDate = formatDisplayDate(nativeDate);
 
     $('.wcr-delivery-date-native').val(nativeDate);
-    $('.wcr-delivery-date-hidden').val(displayDate);
 
     $('[name="wcr_delivery_time"]').each(function () {
       $(this).html(buildTimeOptions(nativeDate, timeValue));
@@ -148,16 +147,26 @@ jQuery(function ($) {
   initNativeDateFields();
 
   $(document).on('change', '.wcr-delivery-date-native', function () {
-    const nativeDate = $(this).val();
-    validateNativeDate($(this));
+    const $input = $(this);
+    validateNativeDate($input);
 
-    const validDate = $(this).val();
-    const $wrap = $(this).closest('form, .wcr-box');
+    const nativeDate = $input.val();
+    const $wrap = $input.closest('form, .wcr-box');
     const $time = $wrap.find('[name="wcr_delivery_time"]').first();
 
     if ($time.length) {
-      $time.html(buildTimeOptions(validDate, $time.val()));
-      syncAll(validDate, $time.val());
+      const currentTime = $time.val();
+      $time.html(buildTimeOptions(nativeDate, currentTime));
+
+      let newTime = currentTime;
+      if (newTime && !$time.find('option[value="' + newTime + '"]').length) {
+        newTime = '';
+        $time.val('');
+      } else if (newTime) {
+        $time.val(newTime);
+      }
+
+      syncAll(nativeDate, newTime);
     }
   });
 
@@ -188,13 +197,9 @@ jQuery(function ($) {
     }
   }
 
-  $(document).on('submit', '.wcr-form', function () {
+  $(document).on('submit', '.wcr-form, .wcr-box form, form:has(.wcr-box)', function () {
     try {
       localStorage.setItem('wcr_delivery_saved', 'yes');
     } catch (e) {}
-
-    const nativeDate = $(this).find('.wcr-delivery-date-native').val();
-    const timeValue = $(this).find('[name="wcr_delivery_time"]').val();
-    syncAll(nativeDate, timeValue);
   });
 });

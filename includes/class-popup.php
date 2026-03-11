@@ -30,27 +30,16 @@ class WCR_Popup {
     }
 
     private function display_to_native($date) {
-        $ymd = WCR_Session::date_to_ymd($date);
-        return $ymd ?: '';
+        return WCR_Session::display_to_native_date($date);
     }
 
-    private function native_to_display($date) {
-        $date = trim((string) $date);
-        if (!$date) return '';
-        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m)) {
-            return sprintf('%02d/%02d/%04d', (int) $m[3], (int) $m[2], (int) $m[1]);
-        }
-        return $date;
-    }
-
-    private function time_options($date_value, $selected_value = '') {
+    private function time_options($native_date, $selected_value = '') {
         $selected = $selected_value ? $selected_value : WCR_Session::get_session('wcr_delivery_time');
         $options = '<option value="">Vælg tidspunkt</option>';
 
-        $ymd = $date_value;
-        if (!$ymd) return $options;
+        if (!$native_date) return $options;
 
-        $weekday = (int) date('w', strtotime($ymd));
+        $weekday = (int) date('w', strtotime($native_date));
         $hours = WCR_Session::get_hours();
         $row = isset($hours[$weekday]) ? $hours[$weekday] : ['closed' => 'no', 'open' => '08:00', 'close' => '16:00'];
 
@@ -78,13 +67,12 @@ class WCR_Popup {
             <h3>Leveringstid</h3>
             <p>Valget gælder for hele ordren.</p>
 
-            <input type="hidden" name="wcr_delivery_date" class="wcr-delivery-date-hidden" value="<?php echo esc_attr($display_date); ?>">
-
             <p>
                 <label for="wcr_delivery_date_inline_native"><strong>Dato</strong></label><br>
                 <input
                     type="date"
                     id="wcr_delivery_date_inline_native"
+                    name="wcr_delivery_date"
                     class="wcr-delivery-date-native"
                     value="<?php echo esc_attr($native_date); ?>"
                     min="<?php echo esc_attr(current_time('Y-m-d')); ?>"
@@ -124,12 +112,11 @@ class WCR_Popup {
                 <h2>Vælg leveringstid</h2>
 
                 <form method="post" class="wcr-form">
-                    <input type="hidden" name="wcr_delivery_date" class="wcr-delivery-date-hidden" value="<?php echo esc_attr($display_date); ?>">
-
                     <label for="wcr_modal_delivery_date_native">Dato</label>
                     <input
                         type="date"
                         id="wcr_modal_delivery_date_native"
+                        name="wcr_delivery_date"
                         class="wcr-delivery-date-native"
                         value="<?php echo esc_attr($native_date); ?>"
                         min="<?php echo esc_attr(current_time('Y-m-d')); ?>"
