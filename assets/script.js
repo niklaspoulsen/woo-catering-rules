@@ -1,87 +1,37 @@
 jQuery(function ($) {
-  function initAdminDatepickers() {
-    if (typeof wcrAdmin === 'undefined' || !wcrAdmin.isAdmin) return;
-
-    $('.wcr-datepicker').each(function () {
-      const $input = $(this);
-
-      if ($input.hasClass('hasDatepicker')) {
-        $input.datepicker('destroy');
-      }
-
-      $input.datepicker({
-        dateFormat: 'dd/mm/yy',
-        firstDay: 1,
-        minDate: 0,
-        showAnim: '',
-        beforeShow: function () {
-          setTimeout(function () {
-            $('#ui-datepicker-div')
-              .appendTo('body')
-              .css({
-                zIndex: 999999,
-                position: 'absolute'
-              });
-          }, 0);
-        }
-      });
-    });
-
-    $('#wcr-add-date-row').off('click').on('click', function () {
-      $('#wcr-closed-dates-list').append($('#wcr-date-row-template').html());
-      initAdminDatepickers();
-    });
-
-    $(document)
-      .off('click.wcrRemoveDate')
-      .on('click.wcrRemoveDate', '.wcr-remove-date', function () {
-        const rows = $('#wcr-closed-dates-list .wcr-date-row');
-        if (rows.length <= 1) {
-          rows.find('input').val('');
-          return;
-        }
-        $(this).closest('.wcr-date-row').remove();
-      });
+  function formatDisplayDate(nativeDate) {
+    if (!nativeDate) return '';
+    const parts = nativeDate.split('-');
+    if (parts.length !== 3) return '';
+    return parts[2] + '/' + parts[1] + '/' + parts[0];
   }
 
   function parseDateString(str) {
     if (!str) return null;
-    const p = str.split('/');
+    const p = str.split('-');
     if (p.length !== 3) return null;
-    return new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+    return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
   }
 
-  function formatDate(d) {
-    return (
-      String(d.getDate()).padStart(2, '0') +
-      '/' +
-      String(d.getMonth() + 1).padStart(2, '0') +
-      '/' +
-      d.getFullYear()
-    );
+  function formatDateNative(d) {
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
   }
 
-  function isClosedDate(dateObj) {
-    const ds = formatDate(dateObj);
-    if ((wcrRules.closedToday === 'yes') && ds === wcrRules.today) return true;
-    return Array.isArray(wcrRules.closedDates) && wcrRules.closedDates.indexOf(ds) !== -1;
+  function isClosedDate(nativeDate) {
+    if (!nativeDate) return false;
+    if (wcrRules.closedToday === 'yes' && nativeDate === wcrRules.today) return true;
+
+    const display = formatDisplayDate(nativeDate);
+    return Array.isArray(wcrRules.closedDates) && wcrRules.closedDates.indexOf(display) !== -1;
   }
 
-  function getWeekdayRow(dateObj) {
-    const weekday = dateObj.getDay();
+  function getWeekdayRow(nativeDate) {
+    const dt = parseDateString(nativeDate);
+    if (!dt) return null;
+    const weekday = dt.getDay();
     return wcrRules.storeHours && wcrRules.storeHours[weekday] ? wcrRules.storeHours[weekday] : null;
-  }
-
-  function isOpenWeekday(dateObj) {
-    const row = getWeekdayRow(dateObj);
-    if (!row) return true;
-    return row.closed !== 'yes';
-  }
-
-  function beforeShowDay(date) {
-    if (isClosedDate(date)) return [false, 'wcr-closed-day', 'Lukket dato'];
-    if (!isOpenWeekday(date)) return [false, 'wcr-closed-weekday', 'Butikken er lukket'];
-    return [true, '', ''];
   }
 
   function roundUpQuarter(t) {
@@ -109,22 +59,18 @@ jQuery(function ($) {
       const p = current.split(':');
       const total = parseInt(p[0], 10) * 60 + parseInt(p[1], 10) + 15;
       if (total > 23 * 60 + 45) break;
-      current =
-        String(Math.floor(total / 60)).padStart(2, '0') +
-        ':' +
-        String(total % 60).padStart(2, '0');
+      current = String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
     }
 
     return vals;
   }
 
-  function buildTimeOptions(dateString, selectedValue) {
+  function buildTimeOptions(nativeDate, selectedValue) {
     let html = '<option value="">Vælg tidspunkt</option>';
-    const dt = parseDateString(dateString);
+    if (!nativeDate) return html;
+    if (isClosedDate(nativeDate)) return html;
 
-    if (!dt) return html;
-
-    const row = getWeekdayRow(dt) || { open: '00:00', close: '23:45', closed: 'no' };
+    const row = getWeekdayRow(nativeDate) || { open: '00:00', close: '23:45', closed: 'no' };
     if (row.closed === 'yes') return html;
 
     const min = roundUpQuarter(row.open || '00:00');
@@ -138,146 +84,91 @@ jQuery(function ($) {
     return html;
   }
 
-  function refreshTimeSelect($dateInput, $timeSelect) {
-    const current = $timeSelect.val();
-    $timeSelect.html(buildTimeOptions($dateInput.val(), current));
+  function applyMinDates() {
+    const today = new Date();
+    const todayNative = formatDateNative(today);
+    $('.wcr-delivery-date-native').attr('min', todayNative);
   }
 
-  function syncAllDateAndTime(dateValue, timeValue) {
-    $('[name="wcr_delivery_date"]').val(dateValue);
+  function syncAll(nativeDate, timeValue) {
+    const displayDate = formatDisplayDate(nativeDate);
+
+    $('.wcr-delivery-date-native').val(nativeDate);
+    $('.wcr-delivery-date-hidden').val(displayDate);
 
     $('[name="wcr_delivery_time"]').each(function () {
-      $(this).html(buildTimeOptions(dateValue, timeValue));
+      $(this).html(buildTimeOptions(nativeDate, timeValue));
       if (timeValue) {
         $(this).val(timeValue);
       }
     });
 
     if ($('#wcr-open-modal small').length) {
-      $('#wcr-open-modal small').text((dateValue || '') + (timeValue ? ' ' + timeValue : ''));
+      $('#wcr-open-modal small').text((displayDate || '') + (timeValue ? ' ' + timeValue : ''));
     }
   }
 
-  function bindDatepicker($input) {
-    if ($input.hasClass('hasDatepicker')) {
-      $input.datepicker('destroy');
+  function validateNativeDate($input) {
+    const nativeDate = $input.val();
+    if (!nativeDate) return;
+
+    const today = new Date();
+    const todayNative = formatDateNative(today);
+
+    if (nativeDate < todayNative || isClosedDate(nativeDate)) {
+      $input.val('');
+      return;
     }
 
-    $input.datepicker({
-      dateFormat: 'dd/mm/yy',
-      firstDay: 1,
-      minDate: 0,
-      showAnim: '',
-      beforeShowDay: beforeShowDay,
-      beforeShow: function () {
-        setTimeout(function () {
-          $('#ui-datepicker-div')
-            .appendTo('body')
-            .css({
-              zIndex: 999999,
-              position: 'absolute'
-            })
-            .show();
-        }, 0);
-      },
-      onSelect: function () {
-        $(this).trigger('change');
-      }
-    });
-
-    $input.off('click.wcr').on('click.wcr', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      $('#ui-datepicker-div')
-        .appendTo('body')
-        .css({
-          zIndex: 999999,
-          position: 'absolute'
-        });
-
-      try {
-        $(this).datepicker('show');
-      } catch (err) {}
-    });
+    const row = getWeekdayRow(nativeDate);
+    if (row && row.closed === 'yes') {
+      $input.val('');
+    }
   }
 
-  function initFrontendDatepickers() {
-    if (typeof wcrRules === 'undefined') return;
+  function initNativeDateFields() {
+    applyMinDates();
 
-    $('.wcr-datepicker').each(function () {
-      bindDatepicker($(this));
-    });
-
-    $('.wcr-form, .wcr-box').each(function () {
-      const $wrap = $(this);
-      const $date = $wrap.find('[name="wcr_delivery_date"]').first();
-      const $time = $wrap.find('[name="wcr_delivery_time"]').first();
-
-      if ($date.length && $time.length) {
-        refreshTimeSelect($date, $time);
-      }
-    });
-  }
-
-  function rebindPopupDatepickers() {
-    $('#wcr-popup .wcr-datepicker').each(function () {
-      bindDatepicker($(this));
+    $('.wcr-delivery-date-native').each(function () {
+      validateNativeDate($(this));
     });
   }
 
   function openModal() {
     $('#wcr-popup').addClass('is-open');
     $('body').addClass('wcr-modal-open');
-
-    rebindPopupDatepickers();
-
-    setTimeout(function () {
-      $('#ui-datepicker-div')
-        .appendTo('body')
-        .css({
-          zIndex: 999999,
-          position: 'absolute'
-        });
-    }, 50);
+    applyMinDates();
   }
 
   function closeModal() {
     $('#wcr-popup').removeClass('is-open');
     $('body').removeClass('wcr-modal-open');
-    $('#ui-datepicker-div').hide();
   }
 
-  initAdminDatepickers();
-  initFrontendDatepickers();
+  initNativeDateFields();
 
-  $(document).on('change', '[name="wcr_delivery_date"]', function () {
-    const dateValue = $(this).val();
+  $(document).on('change', '.wcr-delivery-date-native', function () {
+    const nativeDate = $(this).val();
+    validateNativeDate($(this));
+
+    const validDate = $(this).val();
     const $wrap = $(this).closest('form, .wcr-box');
     const $time = $wrap.find('[name="wcr_delivery_time"]').first();
 
     if ($time.length) {
-      refreshTimeSelect($(this), $time);
-      syncAllDateAndTime(dateValue, $time.val());
+      $time.html(buildTimeOptions(validDate, $time.val()));
+      syncAll(validDate, $time.val());
     }
   });
 
   $(document).on('change', '[name="wcr_delivery_time"]', function () {
     const $wrap = $(this).closest('form, .wcr-box');
-    const dateValue = $wrap.find('[name="wcr_delivery_date"]').first().val();
-    syncAllDateAndTime(dateValue, $(this).val());
+    const nativeDate = $wrap.find('.wcr-delivery-date-native').first().val();
+    syncAll(nativeDate, $(this).val());
   });
 
   $(document).on('click', '.wcr-overlay, .wcr-close', function () {
     closeModal();
-  });
-
-  $(document).on('mousedown', '.wcr-modal', function (e) {
-    e.stopPropagation();
-  });
-
-  $(document).on('mousedown', '#ui-datepicker-div', function (e) {
-    e.stopPropagation();
   });
 
   $(document).on('click', '#wcr-open-modal, [data-wcr-open-modal="1"]', function () {
@@ -302,8 +193,8 @@ jQuery(function ($) {
       localStorage.setItem('wcr_delivery_saved', 'yes');
     } catch (e) {}
 
-    const dateValue = $(this).find('[name="wcr_delivery_date"]').val();
+    const nativeDate = $(this).find('.wcr-delivery-date-native').val();
     const timeValue = $(this).find('[name="wcr_delivery_time"]').val();
-    syncAllDateAndTime(dateValue, timeValue);
+    syncAll(nativeDate, timeValue);
   });
 });

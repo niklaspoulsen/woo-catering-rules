@@ -40,9 +40,9 @@
   font-weight: 600;
 }
 
-.wcr-modal input[type="text"],
+.wcr-modal input[type="date"],
 .wcr-modal select,
-.wcr-box input[type="text"],
+.wcr-box input[type="date"],
 .wcr-box select {
   width: 100%;
   min-height: 58px;
@@ -53,7 +53,6 @@
   box-sizing: border-box;
   background: #fff;
   margin-bottom: 16px;
-  cursor: pointer;
 }
 
 .wcr-primary-button {
@@ -124,24 +123,14 @@ body.wcr-modal-open {
   vertical-align: middle;
 }
 
-.wcr-closed-day a,
-.wcr-closed-weekday a {
-  opacity: 0.35 !important;
-}
-
-#ui-datepicker-div,
-.ui-datepicker {
-  z-index: 999999 !important;
-}
-
 @media (max-width: 700px) {
   .wcr-modal h2 {
     font-size: 28px;
   }
 
-  .wcr-modal input[type="text"],
+  .wcr-modal input[type="date"],
   .wcr-modal select,
-  .wcr-box input[type="text"],
+  .wcr-box input[type="date"],
   .wcr-box select {
     font-size: 18px;
   }
