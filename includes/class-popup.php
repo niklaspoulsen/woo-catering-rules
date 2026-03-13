@@ -20,14 +20,16 @@ class WCR_Popup {
         wp_enqueue_script('wcr-js', WCR_URL . 'assets/script.js', ['jquery'], WCR_VERSION, true);
 
         wp_localize_script('wcr-js', 'wcrRules', [
-            'isAdmin'      => false,
-            'closedDates'  => WCR_Session::get_closed_dates(),
-            'storeHours'   => WCR_Session::get_hours(),
-            'closedToday'  => get_option('wcr_closed_today', 'no'),
-            'today'        => current_time('Y-m-d'),
-            'saved'        => WCR_Session::get_session('wcr_delivery_saved'),
-            'minDate'      => WCR_Session::get_min_delivery_date(),
-            'leadTimeDays' => WCR_Session::get_required_lead_time_days(),
+            'isAdmin'       => false,
+            'closedDates'   => WCR_Session::get_closed_dates(),
+            'storeHours'    => WCR_Session::get_hours(),
+            'closedToday'   => get_option('wcr_closed_today', 'no'),
+            'today'         => current_time('Y-m-d'),
+            'saved'         => WCR_Session::get_session('wcr_delivery_saved'),
+            'minDate'       => WCR_Session::get_min_delivery_date(),
+            'leadTimeDays'  => WCR_Session::get_required_lead_time_days(),
+            'forcePopup'    => WCR_Session::get_session('wcr_force_popup') === 'yes',
+            'popupMessage'  => WCR_Session::get_session('wcr_popup_message'),
         ]);
     }
 
@@ -37,6 +39,15 @@ class WCR_Popup {
 
     private function get_min_date() {
         return WCR_Session::get_min_delivery_date();
+    }
+
+    private function popup_message_html() {
+        $message = WCR_Session::get_session('wcr_popup_message');
+        if (!$message) {
+            return '';
+        }
+
+        return '<div class="wcr-popup-message">' . esc_html($message) . '</div>';
     }
 
     private function time_options($native_date, $selected_value = '') {
@@ -78,6 +89,8 @@ class WCR_Popup {
                 <p><em>Denne ordre kræver mindst <?php echo esc_html(WCR_Session::get_required_lead_time_days()); ?> dages varsel.</em></p>
             <?php endif; ?>
 
+            <?php echo $this->popup_message_html(); ?>
+
             <p>
                 <label for="wcr_delivery_date_inline_native"><strong>Dato</strong></label><br>
                 <input
@@ -113,9 +126,10 @@ class WCR_Popup {
         $native_date  = $this->display_to_native($display_date);
         $time         = WCR_Session::get_session('wcr_delivery_time');
         $saved        = WCR_Session::get_session('wcr_delivery_saved') === 'yes';
+        $force_popup  = WCR_Session::get_session('wcr_force_popup') === 'yes';
         $min_date     = $this->get_min_date();
         ?>
-        <div id="wcr-popup" class="<?php echo $saved ? '' : 'is-open'; ?>">
+        <div id="wcr-popup" class="<?php echo (!$saved || $force_popup) ? 'is-open' : ''; ?>">
             <div class="wcr-overlay"></div>
 
             <div class="wcr-modal">
@@ -126,6 +140,8 @@ class WCR_Popup {
                 <?php if (WCR_Session::get_required_lead_time_days() > 0) : ?>
                     <p><em>Denne ordre kræver mindst <?php echo esc_html(WCR_Session::get_required_lead_time_days()); ?> dages varsel.</em></p>
                 <?php endif; ?>
+
+                <?php echo $this->popup_message_html(); ?>
 
                 <form method="post" class="wcr-form">
                     <label for="wcr_modal_delivery_date_native">Dato</label>
@@ -144,7 +160,7 @@ class WCR_Popup {
                     </select>
 
                     <button type="submit" name="wcr_save_delivery" value="1" class="wcr-primary-button">
-                        Færdig
+                        Gem levering
                     </button>
                 </form>
             </div>
