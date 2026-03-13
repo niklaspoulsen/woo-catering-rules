@@ -123,6 +123,133 @@ body.wcr-modal-open {
   vertical-align: middle;
 }
 
+.wcr-popup-message {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #d63638;
+  background: #fff5f5;
+  color: #8a1f1f;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* Opening hours shortcodes */
+
+.wcr-opening-hours-wrap {
+  display: grid;
+  gap: 16px;
+}
+
+.wcr-opening-status-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.wcr-opening-status-card.state-open {
+  border-color: #d7eadf;
+  background: #f7fbf8;
+}
+
+.wcr-opening-status-card.state-closed,
+.wcr-opening-status-card.state-opening-later {
+  border-color: #e5e7eb;
+  background: #fff;
+}
+
+.wcr-opening-status-card--single {
+  max-width: 680px;
+}
+
+.wcr-opening-status-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  background: #f1f3f4;
+  color: #202124;
+}
+
+.state-open .wcr-opening-status-badge {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.state-closed .wcr-opening-status-badge,
+.state-opening-later .wcr-opening-status-badge {
+  background: #f1f3f4;
+  color: #3c4043;
+}
+
+.wcr-opening-status-text {
+  min-width: 0;
+}
+
+.wcr-opening-status-headline {
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #202124;
+}
+
+.wcr-opening-status-detail {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #5f6368;
+}
+
+.wcr-opening-hours {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.wcr-opening-hours-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.wcr-opening-hours-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.wcr-opening-hours-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.wcr-opening-hours-row.is-today {
+  background: #f8f9fa;
+}
+
+.wcr-opening-hours-row.is-today .wcr-day,
+.wcr-opening-hours-row.is-today .wcr-time {
+  font-weight: 700;
+  color: #202124;
+}
+
+.wcr-day {
+  color: #202124;
+}
+
+.wcr-time {
+  text-align: right;
+  color: #5f6368;
+  white-space: nowrap;
+}
+
 @media (max-width: 700px) {
   .wcr-modal h2 {
     font-size: 28px;
@@ -134,14 +261,21 @@ body.wcr-modal-open {
   .wcr-box select {
     font-size: 18px;
   }
-}
 
-.wcr-popup-message {
-	margin: 0 0 16px;
-	padding: 12px 14px;
-	border: 1px solid #d63638;
-	background: #fff5f5;
-	color: #8a1f1f;
-	border-radius: 8px;
-	font-weight: 500;
+  .wcr-opening-status-card {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .wcr-opening-hours-table td {
+    padding: 12px 14px;
+  }
+
+  .wcr-time {
+    text-align: right;
+  }
+
+  .wcr-opening-status-headline {
+    font-size: 17px;
+  }
 }

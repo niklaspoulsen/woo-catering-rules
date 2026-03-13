@@ -17,9 +17,11 @@ require_once WCR_PATH . 'includes/class-admin.php';
 require_once WCR_PATH . 'includes/class-popup.php';
 require_once WCR_PATH . 'includes/class-validation.php';
 require_once WCR_PATH . 'includes/class-order.php';
+require_once WCR_PATH . 'includes/class-shortcodes.php';
 
 new WCR_Session();
 new WCR_Admin();
 new WCR_Popup();
 new WCR_Validation();
 new WCR_Order();
+new WCR_Shortcodes();

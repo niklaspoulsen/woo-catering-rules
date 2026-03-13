@@ -1,0 +1,298 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+class WCR_Shortcodes {
+
+    public function __construct() {
+        add_action('wp_enqueue_scripts', [$this, 'assets']);
+        add_shortcode('wcr_opening_hours', [$this, 'render_opening_hours']);
+        add_shortcode('wcr_opening_hours_today', [$this, 'render_opening_hours_today']);
+    }
+
+    public function assets() {
+        wp_enqueue_style('wcr-style', WCR_URL . 'assets/style.css', [], WCR_VERSION);
+    }
+
+    private function get_day_labels() {
+        return [
+            1 => 'mandag',
+            2 => 'tirsdag',
+            3 => 'onsdag',
+            4 => 'torsdag',
+            5 => 'fredag',
+            6 => 'lørdag',
+            0 => 'søndag',
+        ];
+    }
+
+    private function get_day_labels_display() {
+        return [
+            1 => 'Mandag',
+            2 => 'Tirsdag',
+            3 => 'Onsdag',
+            4 => 'Torsdag',
+            5 => 'Fredag',
+            6 => 'Lørdag',
+            0 => 'Søndag',
+        ];
+    }
+
+    private function format_time($time) {
+        $time = trim((string) $time);
+
+        if (!$time) {
+            return '';
+        }
+
+        if (!preg_match('/^(\d{2}):(\d{2})$/', $time, $m)) {
+            return $time;
+        }
+
+        return sprintf('%02d.%02d', (int) $m[1], (int) $m[2]);
+    }
+
+    private function get_today_ymd() {
+        return current_time('Y-m-d');
+    }
+
+    private function is_store_closed_entire_day($weekday, $ymd = '') {
+        if (!$ymd) {
+            $ymd = $this->get_today_ymd();
+        }
+
+        if (get_option('wcr_closed_today', 'no') === 'yes' && $ymd === $this->get_today_ymd()) {
+            return true;
+        }
+
+        $closed_dates = WCR_Session::get_closed_dates();
+        foreach ($closed_dates as $date) {
+            if (WCR_Session::date_to_ymd($date) === $ymd) {
+                return true;
+            }
+        }
+
+        $hours = WCR_Session::get_hours();
+        $row = $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
+
+        return (($row['closed'] ?? 'yes') === 'yes');
+    }
+
+    private function get_row_for_day($weekday) {
+        $hours = WCR_Session::get_hours();
+        return $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
+    }
+
+    private function find_next_open_day($today_weekday, $today_ymd) {
+        $labels = $this->get_day_labels();
+
+        for ($i = 1; $i <= 14; $i++) {
+            $timestamp = strtotime($today_ymd . ' +' . $i . ' day');
+            if (!$timestamp) {
+                continue;
+            }
+
+            $weekday = (int) date('w', $timestamp);
+            $ymd     = date('Y-m-d', $timestamp);
+
+            if ($this->is_store_closed_entire_day($weekday, $ymd)) {
+                continue;
+            }
+
+            $row = $this->get_row_for_day($weekday);
+            $open = $row['open'] ?? '';
+
+            return [
+                'weekday' => $weekday,
+                'ymd'     => $ymd,
+                'label'   => $labels[$weekday] ?? '',
+                'open'    => $open,
+                'close'   => $row['close'] ?? '',
+            ];
+        }
+
+        return null;
+    }
+
+    private function get_current_status_data() {
+        $today_ymd   = $this->get_today_ymd();
+        $today       = (int) current_time('w');
+        $row         = $this->get_row_for_day($today);
+        $now         = current_time('H:i');
+        $open        = $row['open'] ?? '';
+        $close       = $row['close'] ?? '';
+        $closed_day  = $this->is_store_closed_entire_day($today, $today_ymd);
+
+        if ($closed_day) {
+            $next = $this->find_next_open_day($today, $today_ymd);
+
+            return [
+                'state'        => 'closed',
+                'badge'        => 'Lukket nu',
+                'headline'     => 'Vi holder lukket nu',
+                'message'      => $next
+                    ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
+                    : 'Vi holder lukket nu',
+                'detail'       => $next
+                    ? 'Åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
+                    : '',
+            ];
+        }
+
+        if (!$open || !$close) {
+            return [
+                'state'    => 'closed',
+                'badge'    => 'Lukket nu',
+                'headline' => 'Vi holder lukket nu',
+                'message'  => 'Vi holder lukket nu',
+                'detail'   => '',
+            ];
+        }
+
+        if (strcmp($now, $open) < 0) {
+            return [
+                'state'    => 'opening-later',
+                'badge'    => 'Lukket nu',
+                'headline' => 'Vi åbner i dag kl. ' . $this->format_time($open),
+                'message'  => 'Vi åbner i dag kl. ' . $this->format_time($open),
+                'detail'   => 'Dagens åbningstid er ' . $this->format_time($open) . ' - ' . $this->format_time($close),
+            ];
+        }
+
+        if (strcmp($now, $open) >= 0 && strcmp($now, $close) < 0) {
+            return [
+                'state'    => 'open',
+                'badge'    => 'Åben nu',
+                'headline' => 'Åbent i dag indtil ' . $this->format_time($close),
+                'message'  => 'Åbent i dag indtil ' . $this->format_time($close),
+                'detail'   => 'I dag: ' . $this->format_time($open) . ' - ' . $this->format_time($close),
+            ];
+        }
+
+        $next = $this->find_next_open_day($today, $today_ymd);
+
+        return [
+            'state'    => 'closed',
+            'badge'    => 'Lukket nu',
+            'headline' => $next
+                ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
+                : 'Vi holder lukket nu',
+            'message'  => $next
+                ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
+                : 'Vi holder lukket nu',
+            'detail'   => $next
+                ? 'Åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
+                : '',
+        ];
+    }
+
+    public function render_opening_hours($atts = []) {
+        $atts = shortcode_atts([
+            'highlight_today' => 'yes',
+            'show_closed'     => 'yes',
+            'show_status'     => 'yes',
+        ], $atts, 'wcr_opening_hours');
+
+        $hours          = WCR_Session::get_hours();
+        $labels         = $this->get_day_labels_display();
+        $today          = (int) current_time('w');
+        $today_ymd      = $this->get_today_ymd();
+        $highlight      = $atts['highlight_today'] === 'yes';
+        $show_closed    = $atts['show_closed'] === 'yes';
+        $show_status    = $atts['show_status'] === 'yes';
+        $status         = $this->get_current_status_data();
+
+        ob_start();
+        ?>
+        <div class="wcr-opening-hours-wrap">
+            <?php if ($show_status) : ?>
+                <div class="wcr-opening-status-card state-<?php echo esc_attr($status['state']); ?>">
+                    <div class="wcr-opening-status-badge">
+                        <?php echo esc_html($status['badge']); ?>
+                    </div>
+                    <div class="wcr-opening-status-text">
+                        <div class="wcr-opening-status-headline">
+                            <?php echo esc_html($status['headline']); ?>
+                        </div>
+                        <?php if (!empty($status['detail'])) : ?>
+                            <div class="wcr-opening-status-detail">
+                                <?php echo esc_html($status['detail']); ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <div class="wcr-opening-hours">
+                <table class="wcr-opening-hours-table">
+                    <tbody>
+                    <?php foreach ($labels as $weekday => $label) :
+                        $row = $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
+
+                        $is_closed = (($row['closed'] ?? 'yes') === 'yes');
+
+                        if ($weekday === $today && $this->is_store_closed_entire_day($weekday, $today_ymd)) {
+                            $is_closed = true;
+                        }
+
+                        if ($is_closed && !$show_closed) {
+                            continue;
+                        }
+
+                        $classes = ['wcr-opening-hours-row'];
+
+                        if ($highlight && $weekday === $today) {
+                            $classes[] = 'is-today';
+                        }
+                        ?>
+                        <tr class="<?php echo esc_attr(implode(' ', $classes)); ?>">
+                            <td class="wcr-day"><?php echo esc_html($label); ?></td>
+                            <td class="wcr-time">
+                                <?php if ($is_closed) : ?>
+                                    Lukket
+                                <?php else : ?>
+                                    <?php echo esc_html($this->format_time($row['open']) . ' - ' . $this->format_time($row['close'])); ?>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    public function render_opening_hours_today($atts = []) {
+        $atts = shortcode_atts([
+            'show_badge' => 'yes',
+        ], $atts, 'wcr_opening_hours_today');
+
+        $status = $this->get_current_status_data();
+        $show_badge = $atts['show_badge'] === 'yes';
+
+        ob_start();
+        ?>
+        <div class="wcr-opening-status-card wcr-opening-status-card--single state-<?php echo esc_attr($status['state']); ?>">
+            <?php if ($show_badge) : ?>
+                <div class="wcr-opening-status-badge">
+                    <?php echo esc_html($status['badge']); ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="wcr-opening-status-text">
+                <div class="wcr-opening-status-headline">
+                    <?php echo esc_html($status['message']); ?>
+                </div>
+
+                <?php if (!empty($status['detail'])) : ?>
+                    <div class="wcr-opening-status-detail">
+                        <?php echo esc_html($status['detail']); ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+}
