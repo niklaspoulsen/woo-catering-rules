@@ -9,6 +9,16 @@ class WCR_Validation {
         add_action('woocommerce_checkout_process', [$this, 'validate_cart']);
     }
 
+    private function set_popup_error($message) {
+        WCR_Session::set_session('wcr_force_popup', 'yes');
+        WCR_Session::set_session('wcr_popup_message', (string) $message);
+    }
+
+    private function clear_popup_error() {
+        WCR_Session::set_session('wcr_force_popup', '');
+        WCR_Session::set_session('wcr_popup_message', '');
+    }
+
     private function validate_store_selection($date, $time) {
         $ymd = WCR_Session::date_to_ymd($date);
 
@@ -80,22 +90,23 @@ class WCR_Validation {
         $time = WCR_Session::get_session('wcr_delivery_time');
 
         if (!$date) {
-            wc_add_notice('Vælg leveringsdato.', 'error');
+            $this->set_popup_error('Vælg leveringsdato.');
             return false;
         }
 
         if (!$time) {
-            wc_add_notice('Vælg leveringstid.', 'error');
+            $this->set_popup_error('Vælg leveringstid.');
             return false;
         }
 
         $result = $this->validate_store_selection($date, $time);
 
         if ($result !== true) {
-            wc_add_notice($result, 'error');
+            $this->set_popup_error($result);
             return false;
         }
 
+        $this->clear_popup_error();
         return $passed;
     }
 
@@ -108,8 +119,18 @@ class WCR_Validation {
         }
 
         $result = $this->validate_store_selection($date, $time);
+
         if ($result !== true) {
-            wc_add_notice($result, 'error');
+            $this->set_popup_error($result);
+
+            /**
+             * Keep Woo notice minimal fallback for non-JS cases.
+             */
+            wc_clear_notices();
+            wc_add_notice('Ret leveringsdato/tid for at fortsætte.', 'error');
+            return;
         }
+
+        $this->clear_popup_error();
     }
 }

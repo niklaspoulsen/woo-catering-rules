@@ -13,31 +13,6 @@ jQuery(function ($) {
     return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
   }
 
-  function formatDateNative(d) {
-    return d.getFullYear() + '-' +
-      String(d.getMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getDate()).padStart(2, '0');
-  }
-
-  function getMinDate() {
-    return (typeof wcrRules !== 'undefined' && wcrRules.minDate) ? wcrRules.minDate : (wcrRules.today || '');
-  }
-
-  function isClosedDate(nativeDate) {
-    if (!nativeDate) return false;
-    if (wcrRules.closedToday === 'yes' && nativeDate === wcrRules.today) return true;
-
-    const display = formatDisplayDate(nativeDate);
-    return Array.isArray(wcrRules.closedDates) && wcrRules.closedDates.indexOf(display) !== -1;
-  }
-
-  function getWeekdayRow(nativeDate) {
-    const dt = parseDateString(nativeDate);
-    if (!dt) return null;
-    const weekday = dt.getDay();
-    return wcrRules.storeHours && wcrRules.storeHours[weekday] ? wcrRules.storeHours[weekday] : null;
-  }
-
   function roundUpQuarter(t) {
     const p = t.split(':');
     let total = parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
@@ -69,6 +44,25 @@ jQuery(function ($) {
     return vals;
   }
 
+  function getMinDate() {
+    return (typeof wcrRules !== 'undefined' && wcrRules.minDate) ? wcrRules.minDate : (wcrRules.today || '');
+  }
+
+  function isClosedDate(nativeDate) {
+    if (!nativeDate) return false;
+    if (wcrRules.closedToday === 'yes' && nativeDate === wcrRules.today) return true;
+
+    const display = formatDisplayDate(nativeDate);
+    return Array.isArray(wcrRules.closedDates) && wcrRules.closedDates.indexOf(display) !== -1;
+  }
+
+  function getWeekdayRow(nativeDate) {
+    const dt = parseDateString(nativeDate);
+    if (!dt) return null;
+    const weekday = dt.getDay();
+    return wcrRules.storeHours && wcrRules.storeHours[weekday] ? wcrRules.storeHours[weekday] : null;
+  }
+
   function buildTimeOptions(nativeDate, selectedValue) {
     let html = '<option value="">Vælg tidspunkt</option>';
     if (!nativeDate) return html;
@@ -94,8 +88,6 @@ jQuery(function ($) {
   }
 
   function syncAll(nativeDate, timeValue) {
-    const displayDate = formatDisplayDate(nativeDate);
-
     $('.wcr-delivery-date-native').val(nativeDate);
 
     $('[name="wcr_delivery_time"]').each(function () {
@@ -105,6 +97,7 @@ jQuery(function ($) {
       }
     });
 
+    const displayDate = formatDisplayDate(nativeDate);
     if ($('#wcr-open-modal small').length) {
       $('#wcr-open-modal small').text((displayDate || '') + (timeValue ? ' ' + timeValue : ''));
     }
@@ -127,14 +120,6 @@ jQuery(function ($) {
     }
   }
 
-  function initNativeDateFields() {
-    applyMinDates();
-
-    $('.wcr-delivery-date-native').each(function () {
-      validateNativeDate($(this));
-    });
-  }
-
   function openModal() {
     $('#wcr-popup').addClass('is-open');
     $('body').addClass('wcr-modal-open');
@@ -146,7 +131,7 @@ jQuery(function ($) {
     $('body').removeClass('wcr-modal-open');
   }
 
-  initNativeDateFields();
+  applyMinDates();
 
   $(document).on('change', '.wcr-delivery-date-native', function () {
     const $input = $(this);
@@ -194,7 +179,7 @@ jQuery(function ($) {
 
     if (wcrRules.saved === 'yes') saved = true;
 
-    if (!saved) {
+    if (!saved || wcrRules.forcePopup) {
       openModal();
     }
   }

@@ -135,3 +135,13 @@ body.wcr-modal-open {
     font-size: 18px;
   }
 }
+
+.wcr-popup-message {
+	margin: 0 0 16px;
+	padding: 12px 14px;
+	border: 1px solid #d63638;
+	background: #fff5f5;
+	color: #8a1f1f;
+	border-radius: 8px;
+	font-weight: 500;
+}
