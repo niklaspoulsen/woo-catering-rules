@@ -20,17 +20,23 @@ class WCR_Popup {
         wp_enqueue_script('wcr-js', WCR_URL . 'assets/script.js', ['jquery'], WCR_VERSION, true);
 
         wp_localize_script('wcr-js', 'wcrRules', [
-            'isAdmin'     => false,
-            'closedDates' => WCR_Session::get_closed_dates(),
-            'storeHours'  => WCR_Session::get_hours(),
-            'closedToday' => get_option('wcr_closed_today', 'no'),
-            'today'       => current_time('Y-m-d'),
-            'saved'       => WCR_Session::get_session('wcr_delivery_saved'),
+            'isAdmin'      => false,
+            'closedDates'  => WCR_Session::get_closed_dates(),
+            'storeHours'   => WCR_Session::get_hours(),
+            'closedToday'  => get_option('wcr_closed_today', 'no'),
+            'today'        => current_time('Y-m-d'),
+            'saved'        => WCR_Session::get_session('wcr_delivery_saved'),
+            'minDate'      => WCR_Session::get_min_delivery_date(),
+            'leadTimeDays' => WCR_Session::get_required_lead_time_days(),
         ]);
     }
 
     private function display_to_native($date) {
         return WCR_Session::display_to_native_date($date);
+    }
+
+    private function get_min_date() {
+        return WCR_Session::get_min_delivery_date();
     }
 
     private function time_options($native_date, $selected_value = '') {
@@ -60,12 +66,17 @@ class WCR_Popup {
 
     private function render_editor($button_text = 'Opdater levering') {
         $display_date = WCR_Session::get_session('wcr_delivery_date');
-        $native_date = $this->display_to_native($display_date);
-        $time = WCR_Session::get_session('wcr_delivery_time');
+        $native_date  = $this->display_to_native($display_date);
+        $time         = WCR_Session::get_session('wcr_delivery_time');
+        $min_date     = $this->get_min_date();
         ?>
         <div class="wcr-box">
             <h3>Leveringstid</h3>
             <p>Valget gælder for hele ordren.</p>
+
+            <?php if (WCR_Session::get_required_lead_time_days() > 0) : ?>
+                <p><em>Denne ordre kræver mindst <?php echo esc_html(WCR_Session::get_required_lead_time_days()); ?> dages varsel.</em></p>
+            <?php endif; ?>
 
             <p>
                 <label for="wcr_delivery_date_inline_native"><strong>Dato</strong></label><br>
@@ -75,7 +86,7 @@ class WCR_Popup {
                     name="wcr_delivery_date"
                     class="wcr-delivery-date-native"
                     value="<?php echo esc_attr($native_date); ?>"
-                    min="<?php echo esc_attr(current_time('Y-m-d')); ?>"
+                    min="<?php echo esc_attr($min_date); ?>"
                 >
             </p>
 
@@ -99,9 +110,10 @@ class WCR_Popup {
         if (!is_shop() && !is_product() && !is_cart() && !is_checkout()) return;
 
         $display_date = WCR_Session::get_session('wcr_delivery_date');
-        $native_date = $this->display_to_native($display_date);
-        $time = WCR_Session::get_session('wcr_delivery_time');
-        $saved = WCR_Session::get_session('wcr_delivery_saved') === 'yes';
+        $native_date  = $this->display_to_native($display_date);
+        $time         = WCR_Session::get_session('wcr_delivery_time');
+        $saved        = WCR_Session::get_session('wcr_delivery_saved') === 'yes';
+        $min_date     = $this->get_min_date();
         ?>
         <div id="wcr-popup" class="<?php echo $saved ? '' : 'is-open'; ?>">
             <div class="wcr-overlay"></div>
@@ -111,6 +123,10 @@ class WCR_Popup {
 
                 <h2>Vælg leveringstid</h2>
 
+                <?php if (WCR_Session::get_required_lead_time_days() > 0) : ?>
+                    <p><em>Denne ordre kræver mindst <?php echo esc_html(WCR_Session::get_required_lead_time_days()); ?> dages varsel.</em></p>
+                <?php endif; ?>
+
                 <form method="post" class="wcr-form">
                     <label for="wcr_modal_delivery_date_native">Dato</label>
                     <input
@@ -119,7 +135,7 @@ class WCR_Popup {
                         name="wcr_delivery_date"
                         class="wcr-delivery-date-native"
                         value="<?php echo esc_attr($native_date); ?>"
-                        min="<?php echo esc_attr(current_time('Y-m-d')); ?>"
+                        min="<?php echo esc_attr($min_date); ?>"
                     >
 
                     <label for="wcr_modal_delivery_time">Tid</label>

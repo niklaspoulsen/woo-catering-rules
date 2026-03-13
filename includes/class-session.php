@@ -50,6 +50,12 @@ class WCR_Session {
             }
         }
 
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m)) {
+            if (checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+                return sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
+            }
+        }
+
         return '';
     }
 
@@ -101,6 +107,95 @@ class WCR_Session {
         if (!$dt) return '23:45';
         $dt->modify('+15 minutes');
         return $dt->format('H:i');
+    }
+
+    /**
+     * Read lead time from a product.
+     * Uses the Catering Menu Builder field: _cmbwc_lead_time_days
+     */
+    public static function get_product_lead_time_days($product_id) {
+        $product_id = absint($product_id);
+        if (!$product_id) return 0;
+
+        $days = (int) get_post_meta($product_id, '_cmbwc_lead_time_days', true);
+        return max(0, $days);
+    }
+
+    /**
+     * Get the strictest lead time from current single product page.
+     */
+    public static function get_current_product_lead_time_days() {
+        if (!is_product()) {
+            return 0;
+        }
+
+        $product_id = get_queried_object_id();
+        if (!$product_id) {
+            return 0;
+        }
+
+        return self::get_product_lead_time_days($product_id);
+    }
+
+    /**
+     * Get the strictest lead time from items already in cart.
+     */
+    public static function get_cart_lead_time_days() {
+        if (!function_exists('WC') || !WC()->cart) {
+            return 0;
+        }
+
+        $max_days = 0;
+
+        foreach (WC()->cart->get_cart() as $cart_item) {
+            $product_id = 0;
+
+            if (!empty($cart_item['product_id'])) {
+                $product_id = absint($cart_item['product_id']);
+            } elseif (!empty($cart_item['data']) && is_a($cart_item['data'], 'WC_Product')) {
+                $product_id = $cart_item['data']->get_id();
+            }
+
+            if (!$product_id) {
+                continue;
+            }
+
+            $days = self::get_product_lead_time_days($product_id);
+            if ($days > $max_days) {
+                $max_days = $days;
+            }
+        }
+
+        return $max_days;
+    }
+
+    /**
+     * Combined lead time: current product page OR current cart, whichever is stricter.
+     */
+    public static function get_required_lead_time_days() {
+        $product_days = self::get_current_product_lead_time_days();
+        $cart_days    = self::get_cart_lead_time_days();
+
+        return max($product_days, $cart_days);
+    }
+
+    /**
+     * Earliest allowed delivery date in Y-m-d.
+     * Calendar days for now.
+     */
+    public static function get_min_delivery_date() {
+        $lead_days = self::get_required_lead_time_days();
+        $today     = current_time('Y-m-d');
+
+        try {
+            $dt = new DateTime($today);
+            if ($lead_days > 0) {
+                $dt->modify('+' . $lead_days . ' day');
+            }
+            return $dt->format('Y-m-d');
+        } catch (Exception $e) {
+            return $today;
+        }
     }
 
     public function __construct() {

@@ -24,11 +24,32 @@ class WCR_Validation {
             return 'Tidspunkt skal være 00, 15, 30 eller 45.';
         }
 
+        $min_date = WCR_Session::get_min_delivery_date();
+        if ($min_date && strcmp($ymd, $min_date) < 0) {
+            $display_min = WCR_Session::native_to_display_date($min_date);
+            $lead_days   = WCR_Session::get_required_lead_time_days();
+
+            if ($lead_days > 0) {
+                return sprintf(
+                    'Denne bestilling kræver mindst %d dages varsel. Tidligste mulige dato er %s.',
+                    $lead_days,
+                    $display_min
+                );
+            }
+
+            return sprintf(
+                'Tidligste mulige dato er %s.',
+                $display_min
+            );
+        }
+
         if (get_option('wcr_closed_today', 'no') === 'yes' && $ymd === current_time('Y-m-d')) {
             return 'Butikken er midlertidigt lukket i dag.';
         }
 
-        if (in_array($date, WCR_Session::get_closed_dates(), true)) {
+        $display_date = WCR_Session::native_to_display_date($ymd);
+
+        if (in_array($display_date, WCR_Session::get_closed_dates(), true)) {
             return 'Den valgte dato er lukket for bestilling.';
         }
 
@@ -41,7 +62,7 @@ class WCR_Validation {
         }
 
         $start = WCR_Session::round_up_quarter($row['open']);
-        $end = WCR_Session::round_down_quarter($row['close']);
+        $end   = WCR_Session::round_down_quarter($row['close']);
 
         if ($start && strcmp($time, $start) < 0) {
             return 'Valgt leveringstid er før butikkens åbningstid (' . $row['open'] . ').';

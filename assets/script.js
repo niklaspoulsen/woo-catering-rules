@@ -19,6 +19,10 @@ jQuery(function ($) {
       String(d.getDate()).padStart(2, '0');
   }
 
+  function getMinDate() {
+    return (typeof wcrRules !== 'undefined' && wcrRules.minDate) ? wcrRules.minDate : (wcrRules.today || '');
+  }
+
   function isClosedDate(nativeDate) {
     if (!nativeDate) return false;
     if (wcrRules.closedToday === 'yes' && nativeDate === wcrRules.today) return true;
@@ -85,9 +89,8 @@ jQuery(function ($) {
   }
 
   function applyMinDates() {
-    const today = new Date();
-    const todayNative = formatDateNative(today);
-    $('.wcr-delivery-date-native').attr('min', todayNative);
+    const minDate = getMinDate();
+    $('.wcr-delivery-date-native').attr('min', minDate);
   }
 
   function syncAll(nativeDate, timeValue) {
@@ -111,10 +114,9 @@ jQuery(function ($) {
     const nativeDate = $input.val();
     if (!nativeDate) return;
 
-    const today = new Date();
-    const todayNative = formatDateNative(today);
+    const minDate = getMinDate();
 
-    if (nativeDate < todayNative || isClosedDate(nativeDate)) {
+    if (nativeDate < minDate || isClosedDate(nativeDate)) {
       $input.val('');
       return;
     }
