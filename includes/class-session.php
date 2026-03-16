@@ -35,9 +35,24 @@ class WCR_Session {
         return is_array($hours) ? $hours : self::get_default_hours();
     }
 
+    /**
+     * Return closed dates normalized as Y-m-d.
+     */
     public static function get_closed_dates() {
         $dates = get_option('wcr_closed_dates', []);
-        return is_array($dates) ? array_values(array_unique(array_filter($dates))) : [];
+        if (!is_array($dates)) {
+            return [];
+        }
+
+        $clean = [];
+        foreach ($dates as $date) {
+            $ymd = self::date_to_ymd($date);
+            if ($ymd) {
+                $clean[] = $ymd;
+            }
+        }
+
+        return array_values(array_unique($clean));
     }
 
     public static function date_to_ymd($date) {
@@ -109,10 +124,6 @@ class WCR_Session {
         return $dt->format('H:i');
     }
 
-    /**
-     * Read lead time from a product.
-     * Uses the Catering Menu Builder field: _cmbwc_lead_time_days
-     */
     public static function get_product_lead_time_days($product_id) {
         $product_id = absint($product_id);
         if (!$product_id) return 0;
@@ -121,9 +132,6 @@ class WCR_Session {
         return max(0, $days);
     }
 
-    /**
-     * Get the strictest lead time from current single product page.
-     */
     public static function get_current_product_lead_time_days() {
         if (!is_product()) {
             return 0;
@@ -137,9 +145,6 @@ class WCR_Session {
         return self::get_product_lead_time_days($product_id);
     }
 
-    /**
-     * Get the strictest lead time from items already in cart.
-     */
     public static function get_cart_lead_time_days() {
         if (!function_exists('WC') || !WC()->cart) {
             return 0;
@@ -169,9 +174,6 @@ class WCR_Session {
         return $max_days;
     }
 
-    /**
-     * Combined lead time: current product page OR current cart, whichever is stricter.
-     */
     public static function get_required_lead_time_days() {
         $product_days = self::get_current_product_lead_time_days();
         $cart_days    = self::get_cart_lead_time_days();
@@ -179,10 +181,6 @@ class WCR_Session {
         return max($product_days, $cart_days);
     }
 
-    /**
-     * Earliest allowed delivery date in Y-m-d.
-     * Calendar days for now.
-     */
     public static function get_min_delivery_date() {
         $lead_days = self::get_required_lead_time_days();
         $today     = current_time('Y-m-d');

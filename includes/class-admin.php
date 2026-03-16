@@ -42,16 +42,24 @@ class WCR_Admin {
         ]);
     }
 
+    /**
+     * Save all closed dates normalized as Y-m-d.
+     */
     public function sanitize_closed_dates($value) {
         if (!is_array($value)) return [];
+
         $clean = [];
+
         foreach ($value as $row) {
             $row = sanitize_text_field((string) $row);
             if (!$row) continue;
-            if (WCR_Session::date_to_ymd($row)) {
-                $clean[] = $row;
+
+            $ymd = WCR_Session::date_to_ymd($row);
+            if ($ymd) {
+                $clean[] = $ymd;
             }
         }
+
         return array_values(array_unique($clean));
     }
 
@@ -96,7 +104,7 @@ class WCR_Admin {
 
     public function page() {
         $hours = get_option('wcr_store_hours', WCR_Session::get_default_hours());
-        $closed_dates = get_option('wcr_closed_dates', []);
+        $closed_dates = WCR_Session::get_closed_dates();
         $closed_today = get_option('wcr_closed_today', 'no');
 
         if (!is_array($closed_dates)) $closed_dates = [];
@@ -116,6 +124,7 @@ class WCR_Admin {
                                 <input type="checkbox" name="wcr_closed_today" value="yes" <?php checked($closed_today, 'yes'); ?>>
                                 Brug denne hvis butikken akut skal lukkes i dag
                             </label>
+                            <p class="description">Denne funktion blokerer kun bestillinger til i dag. Den ændrer ikke butikkens normale åbningstider.</p>
                         </td>
                     </tr>
                 </table>
@@ -166,7 +175,14 @@ class WCR_Admin {
                     <?php if (empty($closed_dates)) $closed_dates = ['']; ?>
                     <?php foreach ($closed_dates as $date) : ?>
                         <div class="wcr-date-row">
-                            <input type="text" class="wcr-datepicker wcr-date-input" name="wcr_closed_dates[]" value="<?php echo esc_attr($date); ?>" placeholder="dd/mm/yyyy" autocomplete="off">
+                            <input
+                                type="text"
+                                class="wcr-datepicker wcr-date-input"
+                                name="wcr_closed_dates[]"
+                                value="<?php echo esc_attr($date ? WCR_Session::native_to_display_date($date) : ''); ?>"
+                                placeholder="dd/mm/yyyy"
+                                autocomplete="off"
+                            >
                             <button type="button" class="button wcr-remove-date">Fjern</button>
                         </div>
                     <?php endforeach; ?>

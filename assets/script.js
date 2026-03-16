@@ -44,28 +44,43 @@ jQuery(function ($) {
     return vals;
   }
 
+  function initAdminDatepickers(context) {
+    if (typeof $.fn.datepicker !== 'function') return;
+
+    $(context || document).find('.wcr-datepicker').each(function () {
+      if ($(this).hasClass('hasDatepicker')) return;
+
+      $(this).datepicker({
+        dateFormat: 'dd/mm/yy',
+        firstDay: 1
+      });
+    });
+  }
+
   function getMinDate() {
     return (typeof wcrRules !== 'undefined' && wcrRules.minDate) ? wcrRules.minDate : (wcrRules.today || '');
   }
 
   function isClosedDate(nativeDate) {
-    if (!nativeDate) return false;
-    if (wcrRules.closedToday === 'yes' && nativeDate === wcrRules.today) return true;
+    if (!nativeDate || typeof wcrRules === 'undefined') return false;
 
-    const display = formatDisplayDate(nativeDate);
-    return Array.isArray(wcrRules.closedDates) && wcrRules.closedDates.indexOf(display) !== -1;
+    if (wcrRules.closedToday === 'yes' && nativeDate === wcrRules.today) {
+      return true;
+    }
+
+    return Array.isArray(wcrRules.closedDates) && wcrRules.closedDates.indexOf(nativeDate) !== -1;
   }
 
   function getWeekdayRow(nativeDate) {
     const dt = parseDateString(nativeDate);
-    if (!dt) return null;
+    if (!dt || typeof wcrRules === 'undefined') return null;
     const weekday = dt.getDay();
     return wcrRules.storeHours && wcrRules.storeHours[weekday] ? wcrRules.storeHours[weekday] : null;
   }
 
   function buildTimeOptions(nativeDate, selectedValue) {
     let html = '<option value="">Vælg tidspunkt</option>';
-    if (!nativeDate) return html;
+    if (!nativeDate || typeof wcrRules === 'undefined') return html;
     if (isClosedDate(nativeDate)) return html;
 
     const row = getWeekdayRow(nativeDate) || { open: '00:00', close: '23:45', closed: 'no' };
@@ -83,6 +98,7 @@ jQuery(function ($) {
   }
 
   function applyMinDates() {
+    if (typeof wcrRules === 'undefined') return;
     const minDate = getMinDate();
     $('.wcr-delivery-date-native').attr('min', minDate);
   }
@@ -104,6 +120,8 @@ jQuery(function ($) {
   }
 
   function validateNativeDate($input) {
+    if (typeof wcrRules === 'undefined') return;
+
     const nativeDate = $input.val();
     if (!nativeDate) return;
 
@@ -129,6 +147,33 @@ jQuery(function ($) {
   function closeModal() {
     $('#wcr-popup').removeClass('is-open');
     $('body').removeClass('wcr-modal-open');
+  }
+
+  if (typeof wcrAdmin !== 'undefined' && wcrAdmin.isAdmin) {
+    initAdminDatepickers(document);
+
+    $(document).on('click', '#wcr-add-date-row', function () {
+      const tpl = $('#wcr-date-row-template').html();
+      if (!tpl) return;
+
+      const $row = $(tpl);
+      $('#wcr-closed-dates-list').append($row);
+      initAdminDatepickers($row);
+    });
+
+    $(document).on('click', '.wcr-remove-date', function () {
+      const $row = $(this).closest('.wcr-date-row');
+      const total = $('#wcr-closed-dates-list .wcr-date-row').length;
+
+      if (total <= 1) {
+        $row.find('input').val('');
+        return;
+      }
+
+      $row.remove();
+    });
+
+    return;
   }
 
   applyMinDates();

@@ -19,6 +19,13 @@ class WCR_Validation {
         WCR_Session::set_session('wcr_popup_message', '');
     }
 
+    private function get_hours_row($ymd) {
+        $weekday = (int) date('w', strtotime($ymd));
+        $hours   = WCR_Session::get_hours();
+
+        return $hours[$weekday] ?? ['closed' => 'no', 'open' => '08:00', 'close' => '16:00'];
+    }
+
     private function validate_store_selection($date, $time) {
         $ymd = WCR_Session::date_to_ymd($date);
 
@@ -53,19 +60,19 @@ class WCR_Validation {
             );
         }
 
+        /**
+         * "Lukket i dag" should only block orders for today.
+         * It must not affect opening-hours shortcodes.
+         */
         if (get_option('wcr_closed_today', 'no') === 'yes' && $ymd === current_time('Y-m-d')) {
-            return 'Butikken er midlertidigt lukket i dag.';
+            return 'Butikken er midlertidigt lukket for bestillinger i dag.';
         }
 
-        $display_date = WCR_Session::native_to_display_date($ymd);
-
-        if (in_array($display_date, WCR_Session::get_closed_dates(), true)) {
+        if (in_array($ymd, WCR_Session::get_closed_dates(), true)) {
             return 'Den valgte dato er lukket for bestilling.';
         }
 
-        $weekday = (int) date('w', strtotime($ymd));
-        $hours = WCR_Session::get_hours();
-        $row = isset($hours[$weekday]) ? $hours[$weekday] : ['closed' => 'no', 'open' => '08:00', 'close' => '16:00'];
+        $row = $this->get_hours_row($ymd);
 
         if (($row['closed'] ?? 'no') === 'yes') {
             return 'Butikken er lukket på den valgte ugedag.';
@@ -123,9 +130,6 @@ class WCR_Validation {
         if ($result !== true) {
             $this->set_popup_error($result);
 
-            /**
-             * Keep Woo notice minimal fallback for non-JS cases.
-             */
             wc_clear_notices();
             wc_add_notice('Ret leveringsdato/tid for at fortsætte.', 'error');
             return;

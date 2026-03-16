@@ -55,24 +55,23 @@ class WCR_Shortcodes {
         return current_time('Y-m-d');
     }
 
-    private function is_store_closed_entire_day($weekday, $ymd = '') {
+    /**
+     * Used by shortcodes only.
+     * IMPORTANT: This deliberately ignores "wcr_closed_today",
+     * because that option should only block ordering for today.
+     */
+    private function is_store_closed_for_display($weekday, $ymd = '') {
         if (!$ymd) {
             $ymd = $this->get_today_ymd();
         }
 
-        if (get_option('wcr_closed_today', 'no') === 'yes' && $ymd === $this->get_today_ymd()) {
+        $closed_dates = WCR_Session::get_closed_dates();
+        if (in_array($ymd, $closed_dates, true)) {
             return true;
         }
 
-        $closed_dates = WCR_Session::get_closed_dates();
-        foreach ($closed_dates as $date) {
-            if (WCR_Session::date_to_ymd($date) === $ymd) {
-                return true;
-            }
-        }
-
         $hours = WCR_Session::get_hours();
-        $row = $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
+        $row   = $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
 
         return (($row['closed'] ?? 'yes') === 'yes');
     }
@@ -82,7 +81,7 @@ class WCR_Shortcodes {
         return $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
     }
 
-    private function find_next_open_day($today_weekday, $today_ymd) {
+    private function find_next_open_day($today_ymd) {
         $labels = $this->get_day_labels();
 
         for ($i = 1; $i <= 14; $i++) {
@@ -94,18 +93,17 @@ class WCR_Shortcodes {
             $weekday = (int) date('w', $timestamp);
             $ymd     = date('Y-m-d', $timestamp);
 
-            if ($this->is_store_closed_entire_day($weekday, $ymd)) {
+            if ($this->is_store_closed_for_display($weekday, $ymd)) {
                 continue;
             }
 
             $row = $this->get_row_for_day($weekday);
-            $open = $row['open'] ?? '';
 
             return [
                 'weekday' => $weekday,
                 'ymd'     => $ymd,
                 'label'   => $labels[$weekday] ?? '',
-                'open'    => $open,
+                'open'    => $row['open'] ?? '',
                 'close'   => $row['close'] ?? '',
             ];
         }
@@ -114,25 +112,25 @@ class WCR_Shortcodes {
     }
 
     private function get_current_status_data() {
-        $today_ymd   = $this->get_today_ymd();
-        $today       = (int) current_time('w');
-        $row         = $this->get_row_for_day($today);
-        $now         = current_time('H:i');
-        $open        = $row['open'] ?? '';
-        $close       = $row['close'] ?? '';
-        $closed_day  = $this->is_store_closed_entire_day($today, $today_ymd);
+        $today_ymd  = $this->get_today_ymd();
+        $today      = (int) current_time('w');
+        $row        = $this->get_row_for_day($today);
+        $now        = current_time('H:i');
+        $open       = $row['open'] ?? '';
+        $close      = $row['close'] ?? '';
+        $closed_day = $this->is_store_closed_for_display($today, $today_ymd);
 
         if ($closed_day) {
-            $next = $this->find_next_open_day($today, $today_ymd);
+            $next = $this->find_next_open_day($today_ymd);
 
             return [
-                'state'        => 'closed',
-                'badge'        => 'Lukket nu',
-                'headline'     => 'Vi holder lukket nu',
-                'message'      => $next
+                'state'    => 'closed',
+                'badge'    => 'Lukket nu',
+                'headline' => 'Vi holder lukket nu',
+                'message'  => $next
                     ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
                     : 'Vi holder lukket nu',
-                'detail'       => $next
+                'detail'   => $next
                     ? 'Åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
                     : '',
             ];
@@ -168,7 +166,7 @@ class WCR_Shortcodes {
             ];
         }
 
-        $next = $this->find_next_open_day($today, $today_ymd);
+        $next = $this->find_next_open_day($today_ymd);
 
         return [
             'state'    => 'closed',
@@ -192,14 +190,14 @@ class WCR_Shortcodes {
             'show_status'     => 'yes',
         ], $atts, 'wcr_opening_hours');
 
-        $hours          = WCR_Session::get_hours();
-        $labels         = $this->get_day_labels_display();
-        $today          = (int) current_time('w');
-        $today_ymd      = $this->get_today_ymd();
-        $highlight      = $atts['highlight_today'] === 'yes';
-        $show_closed    = $atts['show_closed'] === 'yes';
-        $show_status    = $atts['show_status'] === 'yes';
-        $status         = $this->get_current_status_data();
+        $hours       = WCR_Session::get_hours();
+        $labels      = $this->get_day_labels_display();
+        $today       = (int) current_time('w');
+        $today_ymd   = $this->get_today_ymd();
+        $highlight   = $atts['highlight_today'] === 'yes';
+        $show_closed = $atts['show_closed'] === 'yes';
+        $show_status = $atts['show_status'] === 'yes';
+        $status      = $this->get_current_status_data();
 
         ob_start();
         ?>
@@ -230,7 +228,7 @@ class WCR_Shortcodes {
 
                         $is_closed = (($row['closed'] ?? 'yes') === 'yes');
 
-                        if ($weekday === $today && $this->is_store_closed_entire_day($weekday, $today_ymd)) {
+                        if ($weekday === $today && $this->is_store_closed_for_display($weekday, $today_ymd)) {
                             $is_closed = true;
                         }
 
@@ -268,7 +266,7 @@ class WCR_Shortcodes {
             'show_badge' => 'yes',
         ], $atts, 'wcr_opening_hours_today');
 
-        $status = $this->get_current_status_data();
+        $status     = $this->get_current_status_data();
         $show_badge = $atts['show_badge'] === 'yes';
 
         ob_start();
