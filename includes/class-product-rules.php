@@ -1,91 +1,53 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-class WCR_Session {
+class WCR_Product_Rules {
 
-    public static function get_session($key, $default = '') {
-        if (!function_exists('WC') || !WC()->session) {
-            return $default;
-        }
-        $value = WC()->session->get($key);
-        return $value !== null ? $value : $default;
+    public function __construct() {
+        add_action('woocommerce_product_options_general_product_data', [$this, 'fields']);
+        add_action('woocommerce_process_product_meta', [$this, 'save']);
+        add_action('woocommerce_single_product_summary', [$this, 'render_note'], 26);
     }
 
-    public static function set_session($key, $value) {
-        if (!function_exists('WC') || !WC()->session) {
-            return;
-        }
-        WC()->session->set($key, $value);
-    }
-
-    public static function get_default_hours() {
+    private function weekday_options() {
         return [
-            1 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            2 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            3 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            4 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            5 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            6 => ['closed' => 'no',  'open' => '10:00', 'close' => '14:00'],
-            0 => ['closed' => 'yes', 'open' => '10:00', 'close' => '14:00'],
+            '1' => 'Mandag',
+            '2' => 'Tirsdag',
+            '3' => 'Onsdag',
+            '4' => 'Torsdag',
+            '5' => 'Fredag',
+            '6' => 'Lørdag',
+            '0' => 'Søndag',
         ];
     }
 
-    public static function get_hours() {
-        $hours = get_option('wcr_store_hours', self::get_default_hours());
-        return is_array($hours) ? $hours : self::get_default_hours();
-    }
+    public static function get_allowed_weekdays($product_id) {
+        $value = get_post_meta($product_id, '_wcr_allowed_weekdays', true);
 
-    public static function date_to_ymd($date) {
-        $date = trim((string) $date);
-        if (!$date) return '';
-
-        if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $date, $m)) {
-            if (checkdate((int) $m[2], (int) $m[1], (int) $m[3])) {
-                return sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
-            }
-        }
-
-        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m)) {
-            if (checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
-                return sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
-            }
-        }
-
-        return '';
-    }
-
-    public static function native_to_display_date($date) {
-        $date = trim((string) $date);
-        if (!$date) return '';
-
-        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m)) {
-            if (checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
-                return sprintf('%02d/%02d/%04d', (int) $m[3], (int) $m[2], (int) $m[1]);
-            }
-        }
-
-        return '';
-    }
-
-    public static function display_to_native_date($date) {
-        return self::date_to_ymd($date);
-    }
-
-    public static function parse_date_list_text($text) {
-        $text = (string) $text;
-        if ($text === '') {
+        if (!is_array($value)) {
             return [];
         }
 
-        $parts = preg_split('/[\r\n,;]+/', $text);
         $clean = [];
+        foreach ($value as $day) {
+            $day = (string) $day;
+            if (in_array($day, ['0', '1', '2', '3', '4', '5', '6'], true)) {
+                $clean[] = $day;
+            }
+        }
 
-        if (!is_array($parts)) {
+        return array_values(array_unique($clean));
+    }
+
+    public static function get_allowed_dates($product_id) {
+        $value = get_post_meta($product_id, '_wcr_allowed_dates', true);
+        if (!is_array($value)) {
             return [];
         }
 
-        foreach ($parts as $part) {
-            $ymd = self::date_to_ymd($part);
+        $clean = [];
+        foreach ($value as $date) {
+            $ymd = WCR_Session::date_to_ymd($date);
             if ($ymd) {
                 $clean[] = $ymd;
             }
@@ -97,220 +59,214 @@ class WCR_Session {
         return $clean;
     }
 
-    public static function format_date_list_for_textarea($dates) {
-        if (!is_array($dates)) {
-            return '';
-        }
-
-        $lines = [];
-
-        foreach ($dates as $date) {
-            $ymd = self::date_to_ymd($date);
-            if ($ymd) {
-                $lines[] = self::native_to_display_date($ymd);
-            }
-        }
-
-        return implode("\n", array_values(array_unique($lines)));
-    }
-
-    /**
-     * Returns normalized closed day rows.
-     */
-    public static function get_closed_days() {
-        $rows = get_option('wcr_closed_dates', []);
-        if (!is_array($rows)) {
+    public static function get_blocked_dates($product_id) {
+        $value = get_post_meta($product_id, '_wcr_blocked_dates', true);
+        if (!is_array($value)) {
             return [];
         }
 
         $clean = [];
-
-        foreach ($rows as $row) {
-            if (is_string($row)) {
-                $ymd = self::date_to_ymd($row);
-                if ($ymd) {
-                    $clean[] = [
-                        'date'  => $ymd,
-                        'title' => '',
-                        'show'  => 'yes',
-                    ];
-                }
-                continue;
+        foreach ($value as $date) {
+            $ymd = WCR_Session::date_to_ymd($date);
+            if ($ymd) {
+                $clean[] = $ymd;
             }
-
-            if (!is_array($row)) {
-                continue;
-            }
-
-            $ymd = self::date_to_ymd($row['date'] ?? '');
-            if (!$ymd) {
-                continue;
-            }
-
-            $title = sanitize_text_field((string) ($row['title'] ?? ''));
-            $show  = (($row['show'] ?? 'no') === 'yes') ? 'yes' : 'no';
-
-            $clean[] = [
-                'date'  => $ymd,
-                'title' => $title,
-                'show'  => $show,
-            ];
         }
 
-        usort($clean, function($a, $b) {
-            return strcmp($a['date'], $b['date']);
-        });
+        $clean = array_values(array_unique($clean));
+        sort($clean);
 
         return $clean;
     }
 
-    public static function get_closed_dates() {
-        $days = self::get_closed_days();
-        $dates = [];
+    public static function get_custom_note($product_id) {
+        return trim((string) get_post_meta($product_id, '_wcr_rule_note', true));
+    }
 
-        foreach ($days as $day) {
-            if (!empty($day['date'])) {
-                $dates[] = $day['date'];
+    public static function show_note_enabled($product_id) {
+        return get_post_meta($product_id, '_wcr_show_rule_note', true) === 'yes';
+    }
+
+    public static function get_rule_summary($product_id) {
+        $custom = self::get_custom_note($product_id);
+        if ($custom !== '') {
+            return $custom;
+        }
+
+        $parts = [];
+
+        $allowed_weekdays = self::get_allowed_weekdays($product_id);
+        if (!empty($allowed_weekdays)) {
+            $labels = [];
+            $all = (new self())->weekday_options();
+
+            foreach ($allowed_weekdays as $day) {
+                if (isset($all[$day])) {
+                    $labels[] = mb_strtolower($all[$day]);
+                }
+            }
+
+            if (!empty($labels)) {
+                $parts[] = 'Kan kun bestilles ' . self::join_labels($labels);
             }
         }
 
-        return array_values(array_unique($dates));
-    }
+        $allowed_dates = self::get_allowed_dates($product_id);
+        if (!empty($allowed_dates)) {
+            $labels = array_map(function($date) {
+                return WCR_Session::native_to_display_date($date);
+            }, $allowed_dates);
 
-    public static function valid_time($time) {
-        return (bool) preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $time);
-    }
-
-    public static function valid_quarter_time($time) {
-        return (bool) preg_match('/^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/', (string) $time);
-    }
-
-    public static function round_up_quarter($time) {
-        if (!self::valid_time($time)) return '';
-        [$h, $m] = array_map('intval', explode(':', $time));
-        $total = $h * 60 + $m;
-        $rounded = (int) (ceil($total / 15) * 15);
-        if ($rounded > 23 * 60 + 45) $rounded = 23 * 60 + 45;
-        return sprintf('%02d:%02d', floor($rounded / 60), $rounded % 60);
-    }
-
-    public static function round_down_quarter($time) {
-        if (!self::valid_time($time)) return '';
-        [$h, $m] = array_map('intval', explode(':', $time));
-        $total = $h * 60 + $m;
-        $rounded = (int) (floor($total / 15) * 15);
-        if ($rounded < 0) $rounded = 0;
-        return sprintf('%02d:%02d', floor($rounded / 60), $rounded % 60);
-    }
-
-    public static function add_quarter($time) {
-        $dt = DateTime::createFromFormat('H:i', $time);
-        if (!$dt) return '23:45';
-        $dt->modify('+15 minutes');
-        return $dt->format('H:i');
-    }
-
-    public static function get_product_lead_time_days($product_id) {
-        $product_id = absint($product_id);
-        if (!$product_id) return 0;
-
-        $days = (int) get_post_meta($product_id, '_cmbwc_lead_time_days', true);
-        return max(0, $days);
-    }
-
-    public static function get_current_product_lead_time_days() {
-        if (!is_product()) {
-            return 0;
+            $parts[] = 'Kan kun bestilles til ' . self::join_labels($labels);
         }
 
-        $product_id = get_queried_object_id();
-        if (!$product_id) {
-            return 0;
+        $blocked_dates = self::get_blocked_dates($product_id);
+        if (!empty($blocked_dates)) {
+            $labels = array_map(function($date) {
+                return WCR_Session::native_to_display_date($date);
+            }, $blocked_dates);
+
+            $parts[] = 'Kan ikke bestilles til ' . self::join_labels($labels);
         }
 
-        return self::get_product_lead_time_days($product_id);
+        return implode('. ', array_filter($parts));
     }
 
-    public static function get_cart_lead_time_days() {
-        if (!function_exists('WC') || !WC()->cart) {
-            return 0;
-        }
+    private static function join_labels($items) {
+        $items = array_values(array_filter(array_map('trim', $items)));
+        $count = count($items);
 
-        $max_days = 0;
+        if ($count === 0) return '';
+        if ($count === 1) return $items[0];
+        if ($count === 2) return $items[0] . ' og ' . $items[1];
 
-        foreach (WC()->cart->get_cart() as $cart_item) {
-            $product_id = 0;
-
-            if (!empty($cart_item['product_id'])) {
-                $product_id = absint($cart_item['product_id']);
-            } elseif (!empty($cart_item['data']) && is_a($cart_item['data'], 'WC_Product')) {
-                $product_id = $cart_item['data']->get_id();
-            }
-
-            if (!$product_id) {
-                continue;
-            }
-
-            $days = self::get_product_lead_time_days($product_id);
-            if ($days > $max_days) {
-                $max_days = $days;
-            }
-        }
-
-        return $max_days;
+        $last = array_pop($items);
+        return implode(', ', $items) . ' og ' . $last;
     }
 
-    public static function get_required_lead_time_days() {
-        $product_days = self::get_current_product_lead_time_days();
-        $cart_days    = self::get_cart_lead_time_days();
+    public function fields() {
+        global $post;
+        $product_id = $post ? $post->ID : 0;
 
-        return max($product_days, $cart_days);
-    }
+        $allowed_weekdays = self::get_allowed_weekdays($product_id);
+        $allowed_dates    = self::get_allowed_dates($product_id);
+        $blocked_dates    = self::get_blocked_dates($product_id);
+        $rule_note        = self::get_custom_note($product_id);
+        $show_note        = self::show_note_enabled($product_id) ? 'yes' : 'no';
 
-    public static function get_min_delivery_date() {
-        $lead_days = self::get_required_lead_time_days();
-        $today     = current_time('Y-m-d');
+        echo '<div class="options_group">';
 
-        try {
-            $dt = new DateTime($today);
-            if ($lead_days > 0) {
-                $dt->modify('+' . $lead_days . ' day');
-            }
-            return $dt->format('Y-m-d');
-        } catch (Exception $e) {
-            return $today;
-        }
-    }
+        echo '<p class="form-field"><strong>Catering-regler</strong><br><span class="description">Begræns hvilke dage eller datoer dette produkt må bestilles til.</span></p>';
 
-    public function __construct() {
-        add_action('init', [$this, 'capture']);
-    }
+        echo '<p class="form-field">';
+        echo '<label>Tilladte ugedage</label>';
+        echo '<span class="wrap" style="display:flex;flex-wrap:wrap;gap:8px;max-width:700px;">';
 
-    public function capture() {
-        if (!function_exists('WC')) return;
+        foreach ($this->weekday_options() as $value => $label) {
+            $checked = in_array($value, $allowed_weekdays, true);
 
-        if (isset($_POST['wcr_delivery_date'])) {
-            $raw_date = sanitize_text_field(wp_unslash($_POST['wcr_delivery_date']));
-
-            $display_date = '';
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw_date)) {
-                $display_date = self::native_to_display_date($raw_date);
-            } else {
-                $display_date = $raw_date;
-            }
-
-            self::set_session('wcr_delivery_date', $display_date);
+            echo '<label style="
+                display:inline-flex;
+                align-items:center;
+                gap:6px;
+                padding:6px 10px;
+                border:1px solid ' . ($checked ? '#2271b1' : '#dcdcde') . ';
+                border-radius:8px;
+                background:' . ($checked ? '#f0f6fc' : '#fff') . ';
+                cursor:pointer;
+                margin:0;
+                min-height:36px;
+                box-sizing:border-box;
+            ">';
+            echo '<input type="checkbox" name="_wcr_allowed_weekdays[]" value="' . esc_attr($value) . '" ' . checked($checked, true, false) . ' />';
+            echo '<span>' . esc_html($label) . '</span>';
+            echo '</label>';
         }
 
-        if (isset($_POST['wcr_delivery_time'])) {
-            self::set_session('wcr_delivery_time', sanitize_text_field(wp_unslash($_POST['wcr_delivery_time'])));
-        }
+        echo '</span>';
+        echo '<span class="description" style="display:block;margin-top:8px;">Hvis der vælges ugedage her, kan produktet kun bestilles til disse ugedage.</span>';
+        echo '</p>';
 
-        if (!empty($_POST['wcr_save_delivery'])) {
-            self::set_session('wcr_delivery_saved', 'yes');
-            if (function_exists('wc_add_notice')) {
-                wc_add_notice('Leveringsoplysninger gemt.', 'success');
+        woocommerce_wp_textarea_input([
+            'id'          => '_wcr_allowed_dates_text',
+            'label'       => 'Kun tilladte datoer',
+            'description' => 'Én dato pr. linje eller kommasepareret. Format: dd/mm/yyyy. Hvis dette felt er udfyldt, kan produktet kun bestilles til disse datoer. Perfekt til månedsmenuer eller nytårsmenu.',
+            'desc_tip'    => false,
+            'value'       => WCR_Session::format_date_list_for_textarea($allowed_dates),
+        ]);
+
+        woocommerce_wp_textarea_input([
+            'id'          => '_wcr_blocked_dates_text',
+            'label'       => 'Blokerede datoer',
+            'description' => 'Én dato pr. linje eller kommasepareret. Format: dd/mm/yyyy. Produktet kan ikke bestilles til disse datoer.',
+            'desc_tip'    => false,
+            'value'       => WCR_Session::format_date_list_for_textarea($blocked_dates),
+        ]);
+
+        woocommerce_wp_textarea_input([
+            'id'          => '_wcr_rule_note',
+            'label'       => 'Tekst på produktside',
+            'description' => 'Valgfri tekst som vises på produktsiden. Fx: "Kan kun bestilles til afhentning mandag til torsdag" eller "Kan kun bestilles til nytårsaften".',
+            'desc_tip'    => false,
+            'value'       => $rule_note,
+        ]);
+
+        woocommerce_wp_checkbox([
+            'id'          => '_wcr_show_rule_note',
+            'label'       => 'Vis regeltekst på produktsiden',
+            'description' => 'Vis automatisk regeltekst eller den tilpassede tekst ovenfor på produktsiden.',
+            'value'       => $show_note,
+        ]);
+
+        echo '</div>';
+    }
+
+    public function save($product_id) {
+        $allowed_weekdays = isset($_POST['_wcr_allowed_weekdays']) ? (array) wp_unslash($_POST['_wcr_allowed_weekdays']) : [];
+        $clean_weekdays = [];
+
+        foreach ($allowed_weekdays as $day) {
+            $day = sanitize_text_field((string) $day);
+            if (in_array($day, ['0', '1', '2', '3', '4', '5', '6'], true)) {
+                $clean_weekdays[] = $day;
             }
         }
+
+        update_post_meta($product_id, '_wcr_allowed_weekdays', array_values(array_unique($clean_weekdays)));
+
+        $allowed_dates_text = isset($_POST['_wcr_allowed_dates_text']) ? wp_unslash($_POST['_wcr_allowed_dates_text']) : '';
+        $blocked_dates_text = isset($_POST['_wcr_blocked_dates_text']) ? wp_unslash($_POST['_wcr_blocked_dates_text']) : '';
+
+        update_post_meta($product_id, '_wcr_allowed_dates', WCR_Session::parse_date_list_text($allowed_dates_text));
+        update_post_meta($product_id, '_wcr_blocked_dates', WCR_Session::parse_date_list_text($blocked_dates_text));
+
+        $rule_note = isset($_POST['_wcr_rule_note']) ? sanitize_textarea_field(wp_unslash($_POST['_wcr_rule_note'])) : '';
+        update_post_meta($product_id, '_wcr_rule_note', $rule_note);
+
+        $show_note = isset($_POST['_wcr_show_rule_note']) ? 'yes' : 'no';
+        update_post_meta($product_id, '_wcr_show_rule_note', $show_note);
+    }
+
+    public function render_note() {
+        global $product;
+
+        if (!$product || !is_a($product, 'WC_Product')) {
+            return;
+        }
+
+        $product_id = $product->get_id();
+
+        if (!self::show_note_enabled($product_id)) {
+            return;
+        }
+
+        $text = self::get_rule_summary($product_id);
+        if ($text === '') {
+            return;
+        }
+
+        echo '<div class="wcr-product-rule-note" style="margin:12px 0 0;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#fafafa;">';
+        echo wp_kses_post(nl2br(esc_html($text)));
+        echo '</div>';
     }
 }
