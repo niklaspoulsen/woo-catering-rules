@@ -45,6 +45,12 @@ class WCR_Session {
             }
         }
 
+        if (preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $date, $m)) {
+            if (checkdate((int) $m[2], (int) $m[1], (int) $m[3])) {
+                return sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+            }
+        }
+
         if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m)) {
             if (checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
                 return sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
@@ -114,9 +120,6 @@ class WCR_Session {
         return implode("\n", array_values(array_unique($lines)));
     }
 
-    /**
-     * Returns normalized closed day rows.
-     */
     public static function get_closed_days() {
         $rows = get_option('wcr_closed_dates', []);
         if (!is_array($rows)) {

@@ -90,6 +90,18 @@ class WCR_Product_Rules {
                 ).attr('data-target', target);
             }
 
+            function syncVisibilityRange() {
+                var fromDisplay = $('#_wcr_visible_from').val();
+                var untilDisplay = $('#_wcr_visible_until').val();
+
+                var fromNative = displayToNative(fromDisplay);
+                var untilNative = displayToNative(untilDisplay);
+
+                if (fromNative && untilNative && untilNative < fromNative) {
+                    $('#_wcr_visible_until').val(fromDisplay).trigger('change');
+                }
+            }
+
             $(document).on('click', '.wcr-pick-date-button', function(e) {
                 e.preventDefault();
 
@@ -128,6 +140,14 @@ class WCR_Product_Rules {
                     }
                 }
 
+                if (target === '_wcr_visible_until') {
+                    var fromDisplay = $('#_wcr_visible_from').val();
+                    var fromNative = displayToNative(fromDisplay);
+                    if (fromNative) {
+                        $wrap.find('.wcr-inline-datepicker-field').attr('min', fromNative);
+                    }
+                }
+
                 $actions.append($wrap);
 
                 setTimeout(function() {
@@ -154,6 +174,11 @@ class WCR_Product_Rules {
                 if (!displayValue) return;
 
                 appendDateToField($field, displayValue);
+
+                if (target === '_wcr_visible_from' || target === '_wcr_visible_until') {
+                    syncVisibilityRange();
+                }
+
                 $wrap.remove();
             });
 
@@ -225,6 +250,10 @@ class WCR_Product_Rules {
 
                 $field.val('').trigger('change');
                 closeAllPickers();
+            });
+
+            $('#_wcr_visible_from, #_wcr_visible_until').on('change blur', function() {
+                syncVisibilityRange();
             });
 
             $(document).on('click', function(e) {
@@ -398,6 +427,41 @@ class WCR_Product_Rules {
         ];
     }
 
+    public static function get_frontend_rules($product_id) {
+        return [
+            'allowed_weekdays' => self::get_allowed_weekdays($product_id),
+            'allowed_dates'    => self::get_allowed_dates($product_id),
+            'blocked_dates'    => self::get_blocked_dates($product_id),
+        ];
+    }
+
+    public static function is_date_allowed_for_product($product_id, $ymd) {
+        $ymd = WCR_Session::date_to_ymd($ymd);
+        if (!$ymd) {
+            return false;
+        }
+
+        $allowed_dates = self::get_allowed_dates($product_id);
+        if (!empty($allowed_dates) && !in_array($ymd, $allowed_dates, true)) {
+            return false;
+        }
+
+        $blocked_dates = self::get_blocked_dates($product_id);
+        if (!empty($blocked_dates) && in_array($ymd, $blocked_dates, true)) {
+            return false;
+        }
+
+        $allowed_weekdays = self::get_allowed_weekdays($product_id);
+        if (!empty($allowed_weekdays)) {
+            $weekday = (string) date('w', strtotime($ymd));
+            if (!in_array($weekday, $allowed_weekdays, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static function get_rule_summary($product_id) {
         $custom = self::get_custom_note($product_id);
         if ($custom !== '') {
@@ -522,7 +586,7 @@ class WCR_Product_Rules {
         woocommerce_wp_text_input([
             'id'          => '_wcr_visible_until',
             'label'       => 'Synlig til dato',
-            'description' => 'Produktet skjules efter denne dato.',
+            'description' => 'Produktet skjules efter denne dato. Hvis du vælger en dato før "Synlig fra", bliver den automatisk rettet.',
             'desc_tip'    => false,
             'value'       => $visible_until ? WCR_Session::native_to_display_date($visible_until) : '',
             'placeholder' => 'dd/mm/yyyy',
@@ -639,8 +703,15 @@ class WCR_Product_Rules {
         $visible_from = isset($_POST['_wcr_visible_from']) ? sanitize_text_field(wp_unslash($_POST['_wcr_visible_from'])) : '';
         $visible_until = isset($_POST['_wcr_visible_until']) ? sanitize_text_field(wp_unslash($_POST['_wcr_visible_until'])) : '';
 
-        update_post_meta($product_id, '_wcr_visible_from', WCR_Session::date_to_ymd($visible_from));
-        update_post_meta($product_id, '_wcr_visible_until', WCR_Session::date_to_ymd($visible_until));
+        $visible_from_ymd = WCR_Session::date_to_ymd($visible_from);
+        $visible_until_ymd = WCR_Session::date_to_ymd($visible_until);
+
+        if ($visible_from_ymd && $visible_until_ymd && strcmp($visible_until_ymd, $visible_from_ymd) < 0) {
+            $visible_until_ymd = $visible_from_ymd;
+        }
+
+        update_post_meta($product_id, '_wcr_visible_from', $visible_from_ymd);
+        update_post_meta($product_id, '_wcr_visible_until', $visible_until_ymd);
 
         $rule_note = isset($_POST['_wcr_rule_note']) ? sanitize_textarea_field(wp_unslash($_POST['_wcr_rule_note'])) : '';
         update_post_meta($product_id, '_wcr_rule_note', $rule_note);
