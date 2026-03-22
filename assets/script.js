@@ -13,20 +13,6 @@ jQuery(function ($) {
     return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
   }
 
-  function parseDotOrSlashDate(str) {
-    if (!str) return '';
-    let m = String(str).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-
-    m = String(str).trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-
-    m = String(str).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (m) return str;
-
-    return '';
-  }
-
   function roundUpQuarter(t) {
     const p = t.split(':');
     let total = parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
@@ -58,95 +44,63 @@ jQuery(function ($) {
     return vals;
   }
 
-  function getRulesObject() {
-    return (typeof wcrRules !== 'undefined') ? wcrRules : null;
+  function initAdminDatepickers(context) {
+    if (typeof $.fn.datepicker !== 'function') return;
+
+    $(context || document).find('.wcr-datepicker').each(function () {
+      if ($(this).hasClass('hasDatepicker')) return;
+
+      $(this).datepicker({
+        dateFormat: 'dd/mm/yy',
+        firstDay: 1
+      });
+    });
   }
 
-  function getProductRules() {
-    const rulesObj = getRulesObject();
-    if (!rulesObj || !rulesObj.productRules) {
-      return {
-        allowedWeekdays: [],
-        allowedDates: [],
-        blockedDates: []
-      };
-    }
+  function getNextClosedDayIndex() {
+    let maxIndex = -1;
 
-    return {
-      allowedWeekdays: Array.isArray(rulesObj.productRules.allowedWeekdays) ? rulesObj.productRules.allowedWeekdays : [],
-      allowedDates: Array.isArray(rulesObj.productRules.allowedDates) ? rulesObj.productRules.allowedDates : [],
-      blockedDates: Array.isArray(rulesObj.productRules.blockedDates) ? rulesObj.productRules.blockedDates : []
-    };
+    $('#wcr-closed-dates-list .wcr-date-row--closed-day').each(function () {
+      $(this).find('input, select').each(function () {
+        const name = $(this).attr('name') || '';
+        const match = name.match(/wcr_closed_dates\[(\d+)\]/);
+        if (match) {
+          const index = parseInt(match[1], 10);
+          if (index > maxIndex) {
+            maxIndex = index;
+          }
+        }
+      });
+    });
+
+    return maxIndex + 1;
   }
 
   function getMinDate() {
-    const rulesObj = getRulesObject();
-    if (!rulesObj) return '';
-    return rulesObj.minDate || rulesObj.today || '';
+    return (typeof wcrRules !== 'undefined' && wcrRules.minDate) ? wcrRules.minDate : (wcrRules.today || '');
   }
 
   function isClosedDate(nativeDate) {
-    const rulesObj = getRulesObject();
-    if (!nativeDate || !rulesObj) return false;
+    if (!nativeDate || typeof wcrRules === 'undefined') return false;
 
-    if (rulesObj.closedToday === 'yes' && nativeDate === rulesObj.today) {
+    if (wcrRules.closedToday === 'yes' && nativeDate === wcrRules.today) {
       return true;
     }
 
-    return Array.isArray(rulesObj.closedDates) && rulesObj.closedDates.indexOf(nativeDate) !== -1;
+    return Array.isArray(wcrRules.closedDates) && wcrRules.closedDates.indexOf(nativeDate) !== -1;
   }
 
   function getWeekdayRow(nativeDate) {
-    const rulesObj = getRulesObject();
     const dt = parseDateString(nativeDate);
-    if (!dt || !rulesObj) return null;
+    if (!dt || typeof wcrRules === 'undefined') return null;
     const weekday = dt.getDay();
-    return rulesObj.storeHours && rulesObj.storeHours[weekday] ? rulesObj.storeHours[weekday] : null;
-  }
-
-  function isAllowedByProductRules(nativeDate) {
-    if (!nativeDate) return true;
-
-    const rules = getProductRules();
-    const dt = parseDateString(nativeDate);
-    if (!dt) return true;
-
-    const weekday = String(dt.getDay());
-
-    if (rules.allowedDates.length && rules.allowedDates.indexOf(nativeDate) === -1) {
-      return false;
-    }
-
-    if (rules.blockedDates.length && rules.blockedDates.indexOf(nativeDate) !== -1) {
-      return false;
-    }
-
-    if (rules.allowedWeekdays.length && rules.allowedWeekdays.indexOf(weekday) === -1) {
-      return false;
-    }
-
-    return true;
-  }
-
-  function isDateSelectable(nativeDate) {
-    if (!nativeDate) return false;
-
-    const minDate = getMinDate();
-    if (minDate && nativeDate < minDate) return false;
-    if (isClosedDate(nativeDate)) return false;
-
-    const row = getWeekdayRow(nativeDate);
-    if (row && row.closed === 'yes') return false;
-
-    if (!isAllowedByProductRules(nativeDate)) return false;
-
-    return true;
+    return wcrRules.storeHours && wcrRules.storeHours[weekday] ? wcrRules.storeHours[weekday] : null;
   }
 
   function buildTimeOptions(nativeDate, selectedValue) {
     let html = '<option value="">Vælg tidspunkt</option>';
-    if (!nativeDate) return html;
-    if (!isDateSelectable(nativeDate)) return html;
+    if (!nativeDate || typeof wcrRules === 'undefined') return html;
+    if (isClosedDate(nativeDate)) return html;
 
     const row = getWeekdayRow(nativeDate) || { open: '00:00', close: '23:45', closed: 'no' };
     if (row.closed === 'yes') return html;
@@ -163,40 +117,9 @@ jQuery(function ($) {
   }
 
   function applyMinDates() {
-    const rulesObj = getRulesObject();
-    if (!rulesObj) return;
-
+    if (typeof wcrRules === 'undefined') return;
     const minDate = getMinDate();
     $('.wcr-delivery-date-native').attr('min', minDate);
-
-    const rules = getProductRules();
-    if (rules.allowedDates.length) {
-      const sorted = rules.allowedDates.slice().sort();
-      const maxAllowed = sorted[sorted.length - 1];
-      if (maxAllowed) {
-        $('.wcr-delivery-date-native').attr('max', maxAllowed);
-      }
-    }
-  }
-
-  function setFieldValidity($input) {
-    const nativeDate = $input.val();
-    if (!nativeDate) {
-      if ($input[0]) $input[0].setCustomValidity('');
-      return;
-    }
-
-    if (!isAllowedByProductRules(nativeDate)) {
-      if ($input[0]) $input[0].setCustomValidity('Den valgte dato er ikke tilladt for dette produkt.');
-      return;
-    }
-
-    if (!isDateSelectable(nativeDate)) {
-      if ($input[0]) $input[0].setCustomValidity('Den valgte dato kan ikke bestilles.');
-      return;
-    }
-
-    if ($input[0]) $input[0].setCustomValidity('');
   }
 
   function syncAll(nativeDate, timeValue) {
@@ -216,19 +139,22 @@ jQuery(function ($) {
   }
 
   function validateNativeDate($input) {
-    let nativeDate = $input.val();
+    if (typeof wcrRules === 'undefined') return;
+
+    const nativeDate = $input.val();
     if (!nativeDate) return;
 
-    nativeDate = parseDotOrSlashDate(nativeDate) || nativeDate;
+    const minDate = getMinDate();
 
-    if (!isDateSelectable(nativeDate)) {
+    if (nativeDate < minDate || isClosedDate(nativeDate)) {
       $input.val('');
-      setFieldValidity($input);
       return;
     }
 
-    $input.val(nativeDate);
-    setFieldValidity($input);
+    const row = getWeekdayRow(nativeDate);
+    if (row && row.closed === 'yes') {
+      $input.val('');
+    }
   }
 
   function openModal() {
@@ -242,14 +168,40 @@ jQuery(function ($) {
     $('body').removeClass('wcr-modal-open');
   }
 
-  applyMinDates();
+  if (typeof wcrAdmin !== 'undefined' && wcrAdmin.isAdmin) {
+    initAdminDatepickers(document);
 
-  const rulesObj = getRulesObject();
-  if (rulesObj && rulesObj.savedDate) {
-    syncAll(rulesObj.savedDate, rulesObj.savedTime || '');
+    $(document).on('click', '#wcr-add-date-row', function () {
+      const tpl = $('#wcr-date-row-template').html();
+      if (!tpl) return;
+
+      const nextIndex = getNextClosedDayIndex();
+      const html = tpl.replace(/__INDEX__/g, String(nextIndex));
+      const $row = $(html);
+
+      $('#wcr-closed-dates-list').append($row);
+      initAdminDatepickers($row);
+    });
+
+    $(document).on('click', '.wcr-remove-date', function () {
+      const $row = $(this).closest('.wcr-date-row');
+      const total = $('#wcr-closed-dates-list .wcr-date-row').length;
+
+      if (total <= 1) {
+        $row.find('input[type="text"]').val('');
+        $row.find('input[type="checkbox"]').prop('checked', true);
+        return;
+      }
+
+      $row.remove();
+    });
+
+    return;
   }
 
-  $(document).on('input change', '.wcr-delivery-date-native', function () {
+  applyMinDates();
+
+  $(document).on('change', '.wcr-delivery-date-native', function () {
     const $input = $(this);
     validateNativeDate($input);
 
@@ -273,11 +225,6 @@ jQuery(function ($) {
     }
   });
 
-  $(document).on('focus', '.wcr-delivery-date-native', function () {
-    applyMinDates();
-    setFieldValidity($(this));
-  });
-
   $(document).on('change', '[name="wcr_delivery_time"]', function () {
     const $wrap = $(this).closest('form, .wcr-box');
     const nativeDate = $wrap.find('.wcr-delivery-date-native').first().val();
@@ -292,28 +239,20 @@ jQuery(function ($) {
     openModal();
   });
 
-  if (rulesObj) {
+  if (typeof wcrRules !== 'undefined') {
     let saved = false;
     try {
       saved = localStorage.getItem('wcr_delivery_saved') === 'yes';
     } catch (e) {}
 
-    if (rulesObj.saved === 'yes') saved = true;
+    if (wcrRules.saved === 'yes') saved = true;
 
-    if (!saved || rulesObj.forcePopup) {
+    if (!saved || wcrRules.forcePopup) {
       openModal();
     }
   }
 
   $(document).on('submit', '.wcr-form, .wcr-box form, form:has(.wcr-box)', function () {
-    const $date = $(this).find('.wcr-delivery-date-native').first();
-    if ($date.length) {
-      validateNativeDate($date);
-      if (!$date.val()) {
-        return false;
-      }
-    }
-
     try {
       localStorage.setItem('wcr_delivery_saved', 'yes');
     } catch (e) {}

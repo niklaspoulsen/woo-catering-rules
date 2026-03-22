@@ -5,140 +5,207 @@ class WCR_Popup {
 
     public function __construct() {
         add_action('wp_enqueue_scripts', [$this, 'assets']);
-        add_action('wp_footer', [$this, 'render_popup']);
-        add_shortcode('wcr_delivery_box', [$this, 'render_box_shortcode']);
-    }
-
-    private function should_load() {
-        return is_product() || is_cart() || is_checkout() || is_shop() || is_product_category() || is_product_tag();
-    }
-
-    private function get_current_product_rules() {
-        if (!is_product() || !class_exists('WCR_Product_Rules')) {
-            return [
-                'allowedWeekdays' => [],
-                'allowedDates'    => [],
-                'blockedDates'    => [],
-            ];
-        }
-
-        $product_id = get_queried_object_id();
-        if (!$product_id) {
-            return [
-                'allowedWeekdays' => [],
-                'allowedDates'    => [],
-                'blockedDates'    => [],
-            ];
-        }
-
-        $rules = WCR_Product_Rules::get_frontend_rules($product_id);
-
-        return [
-            'allowedWeekdays' => !empty($rules['allowed_weekdays']) ? array_values($rules['allowed_weekdays']) : [],
-            'allowedDates'    => !empty($rules['allowed_dates']) ? array_values($rules['allowed_dates']) : [],
-            'blockedDates'    => !empty($rules['blocked_dates']) ? array_values($rules['blocked_dates']) : [],
-        ];
+        add_action('wp_footer', [$this, 'render']);
+        add_action('wp_footer', [$this, 'render_floating_button']);
+        add_action('woocommerce_before_cart', [$this, 'cart_box']);
+        add_action('woocommerce_before_checkout_form', [$this, 'checkout_box']);
+        add_shortcode('cor_delivery_summary', [$this, 'shortcode_summary']);
+        add_shortcode('cor_delivery_selector', [$this, 'shortcode_selector']);
     }
 
     public function assets() {
-        if (!$this->should_load()) {
-            return;
-        }
+        if (!is_shop() && !is_product() && !is_cart() && !is_checkout()) return;
 
         wp_enqueue_style('wcr-style', WCR_URL . 'assets/style.css', [], WCR_VERSION);
         wp_enqueue_script('wcr-js', WCR_URL . 'assets/script.js', ['jquery'], WCR_VERSION, true);
 
-        $saved_date      = WCR_Session::get_session('wcr_delivery_date', '');
-        $saved_time      = WCR_Session::get_session('wcr_delivery_time', '');
-        $saved_date_ymd  = WCR_Session::date_to_ymd($saved_date);
-        $popup_message   = WCR_Session::get_session('wcr_popup_message', '');
-        $force_popup     = WCR_Session::get_session('wcr_force_popup', '') === 'yes';
-        $delivery_saved  = WCR_Session::get_session('wcr_delivery_saved', '');
-
         wp_localize_script('wcr-js', 'wcrRules', [
-            'today'        => current_time('Y-m-d'),
-            'minDate'      => WCR_Session::get_min_delivery_date(),
-            'closedToday'  => get_option('wcr_closed_today', 'no'),
-            'closedDates'  => WCR_Session::get_closed_dates(),
-            'storeHours'   => WCR_Session::get_hours(),
-            'saved'        => $delivery_saved,
-            'forcePopup'   => $force_popup,
-            'popupMessage' => $popup_message,
-            'savedDate'    => $saved_date_ymd,
-            'savedTime'    => $saved_time,
-            'productRules' => $this->get_current_product_rules(),
+            'isAdmin'       => false,
+            'closedDates'   => WCR_Session::get_closed_dates(),
+            'storeHours'    => WCR_Session::get_hours(),
+            'closedToday'   => get_option('wcr_closed_today', 'no'),
+            'today'         => current_time('Y-m-d'),
+            'saved'         => WCR_Session::get_session('wcr_delivery_saved'),
+            'minDate'       => WCR_Session::get_min_delivery_date(),
+            'leadTimeDays'  => WCR_Session::get_required_lead_time_days(),
+            'forcePopup'    => WCR_Session::get_session('wcr_force_popup') === 'yes',
+            'popupMessage'  => WCR_Session::get_session('wcr_popup_message'),
         ]);
     }
 
-    private function render_fields($context = 'popup') {
-        $saved_date     = WCR_Session::get_session('wcr_delivery_date', '');
-        $saved_time     = WCR_Session::get_session('wcr_delivery_time', '');
-        $saved_date_ymd = WCR_Session::date_to_ymd($saved_date);
+    private function display_to_native($date) {
+        return WCR_Session::display_to_native_date($date);
+    }
+
+    private function get_min_date() {
+        return WCR_Session::get_min_delivery_date();
+    }
+
+    private function popup_message_html() {
+        $message = WCR_Session::get_session('wcr_popup_message');
+        if (!$message) {
+            return '';
+        }
+
+        return '<div class="wcr-popup-message">' . esc_html($message) . '</div>';
+    }
+
+    private function time_options($native_date, $selected_value = '') {
+        $selected = $selected_value ? $selected_value : WCR_Session::get_session('wcr_delivery_time');
+        $options = '<option value="">Vælg tidspunkt</option>';
+
+        if (!$native_date) return $options;
+
+        $weekday = (int) date('w', strtotime($native_date));
+        $hours = WCR_Session::get_hours();
+        $row = isset($hours[$weekday]) ? $hours[$weekday] : ['closed' => 'no', 'open' => '08:00', 'close' => '16:00'];
+
+        if (($row['closed'] ?? 'no') === 'yes') return $options;
+
+        $start = WCR_Session::round_up_quarter($row['open']);
+        $end = WCR_Session::round_down_quarter($row['close']);
+
+        if (!$start || !$end || strcmp($start, $end) > 0) return $options;
+
+        for ($t = $start; strcmp($t, $end) <= 0; $t = WCR_Session::add_quarter($t)) {
+            $options .= '<option value="' . esc_attr($t) . '"' . selected($selected, $t, false) . '>' . esc_html($t) . '</option>';
+            if ($t === '23:45') break;
+        }
+
+        return $options;
+    }
+
+    private function render_editor($button_text = 'Opdater levering') {
+        $display_date = WCR_Session::get_session('wcr_delivery_date');
+        $native_date  = $this->display_to_native($display_date);
+        $time         = WCR_Session::get_session('wcr_delivery_time');
+        $min_date     = $this->get_min_date();
         ?>
         <div class="wcr-box">
+            <h3>Leveringstid</h3>
+            <p>Valget gælder for hele ordren.</p>
+
+            <?php if (WCR_Session::get_required_lead_time_days() > 0) : ?>
+                <p><em>Denne ordre kræver mindst <?php echo esc_html(WCR_Session::get_required_lead_time_days()); ?> dages varsel.</em></p>
+            <?php endif; ?>
+
+            <?php echo $this->popup_message_html(); ?>
+
             <p>
-                <label for="wcr_delivery_date_<?php echo esc_attr($context); ?>">Dato</label>
+                <label for="wcr_delivery_date_inline_native"><strong>Dato</strong></label><br>
                 <input
                     type="date"
-                    id="wcr_delivery_date_<?php echo esc_attr($context); ?>"
+                    id="wcr_delivery_date_inline_native"
                     name="wcr_delivery_date"
                     class="wcr-delivery-date-native"
-                    value="<?php echo esc_attr($saved_date_ymd); ?>"
+                    value="<?php echo esc_attr($native_date); ?>"
+                    min="<?php echo esc_attr($min_date); ?>"
                 >
             </p>
 
             <p>
-                <label for="wcr_delivery_time_<?php echo esc_attr($context); ?>">Tidspunkt</label>
-                <select id="wcr_delivery_time_<?php echo esc_attr($context); ?>" name="wcr_delivery_time">
-                    <option value="">Vælg tidspunkt</option>
-                    <?php if ($saved_time) : ?>
-                        <option value="<?php echo esc_attr($saved_time); ?>" selected><?php echo esc_html($saved_time); ?></option>
-                    <?php endif; ?>
+                <label for="wcr_delivery_time_inline"><strong>Tid</strong></label><br>
+                <select id="wcr_delivery_time_inline" name="wcr_delivery_time" class="wcr-time-select">
+                    <?php echo $this->time_options($native_date, $time); ?>
                 </select>
             </p>
 
-            <?php if ($context === 'popup') : ?>
-                <p style="margin:0;">
-                    <button type="submit" name="wcr_save_delivery" value="1" class="wcr-primary-button">Gem</button>
-                </p>
-            <?php endif; ?>
+            <p>
+                <button type="submit" class="button" name="wcr_save_delivery" value="1">
+                    <?php echo esc_html($button_text); ?>
+                </button>
+            </p>
         </div>
         <?php
     }
 
-    public function render_popup() {
-        if (!$this->should_load()) {
-            return;
-        }
+    public function render() {
+        if (!is_shop() && !is_product() && !is_cart() && !is_checkout()) return;
 
-        $popup_message = WCR_Session::get_session('wcr_popup_message', '');
+        $display_date = WCR_Session::get_session('wcr_delivery_date');
+        $native_date  = $this->display_to_native($display_date);
+        $time         = WCR_Session::get_session('wcr_delivery_time');
+        $saved        = WCR_Session::get_session('wcr_delivery_saved') === 'yes';
+        $force_popup  = WCR_Session::get_session('wcr_force_popup') === 'yes';
+        $min_date     = $this->get_min_date();
         ?>
-        <div id="wcr-popup" aria-hidden="true">
+        <div id="wcr-popup" class="<?php echo (!$saved || $force_popup) ? 'is-open' : ''; ?>">
             <div class="wcr-overlay"></div>
 
             <div class="wcr-modal">
                 <button type="button" class="wcr-close" aria-label="Luk">×</button>
-                <h2>Vælg levering</h2>
 
-                <?php if ($popup_message) : ?>
-                    <div class="wcr-popup-message"><?php echo esc_html($popup_message); ?></div>
+                <h2>Vælg leveringstid</h2>
+
+                <?php if (WCR_Session::get_required_lead_time_days() > 0) : ?>
+                    <p><em>Denne ordre kræver mindst <?php echo esc_html(WCR_Session::get_required_lead_time_days()); ?> dages varsel.</em></p>
                 <?php endif; ?>
 
+                <?php echo $this->popup_message_html(); ?>
+
                 <form method="post" class="wcr-form">
-                    <?php $this->render_fields('popup'); ?>
+                    <label for="wcr_modal_delivery_date_native">Dato</label>
+                    <input
+                        type="date"
+                        id="wcr_modal_delivery_date_native"
+                        name="wcr_delivery_date"
+                        class="wcr-delivery-date-native"
+                        value="<?php echo esc_attr($native_date); ?>"
+                        min="<?php echo esc_attr($min_date); ?>"
+                    >
+
+                    <label for="wcr_modal_delivery_time">Tid</label>
+                    <select id="wcr_modal_delivery_time" name="wcr_delivery_time" class="wcr-time-select">
+                        <?php echo $this->time_options($native_date, $time); ?>
+                    </select>
+
+                    <button type="submit" name="wcr_save_delivery" value="1" class="wcr-primary-button">
+                        Gem levering
+                    </button>
                 </form>
             </div>
         </div>
         <?php
     }
 
-    public function render_box_shortcode() {
-        ob_start();
+    public function render_floating_button() {
+        if (!is_shop() && !is_product() && !is_cart() && !is_checkout()) return;
+
+        $date = WCR_Session::get_session('wcr_delivery_date');
+        $time = WCR_Session::get_session('wcr_delivery_time');
+
+        if (!$date && !$time) return;
         ?>
-        <form method="post" class="wcr-form">
-            <?php $this->render_fields('shortcode'); ?>
-        </form>
+        <button type="button" id="wcr-open-modal" class="wcr-floating-button">
+            Ændr levering<br>
+            <small><?php echo esc_html(trim($date . ' ' . $time)); ?></small>
+        </button>
         <?php
+    }
+
+    public function cart_box() {
+        if (!function_exists('WC') || !WC()->cart) return;
+        $this->render_editor();
+    }
+
+    public function checkout_box() {
+        $this->render_editor();
+    }
+
+    public function shortcode_summary() {
+        $date = WCR_Session::get_session('wcr_delivery_date');
+        $time = WCR_Session::get_session('wcr_delivery_time');
+
+        if (!$date && !$time) {
+            return '<div class="wcr-shortcode-summary"><button type="button" class="button" data-wcr-open-modal="1">Vælg leveringstid</button></div>';
+        }
+
+        return '<div class="wcr-shortcode-summary"><strong>Levering:</strong> ' . esc_html(trim($date . ' ' . $time)) . ' <button type="button" class="button button-small" data-wcr-open-modal="1">Ret</button></div>';
+    }
+
+    public function shortcode_selector() {
+        ob_start();
+        $this->render_editor('Gem levering');
         return ob_get_clean();
     }
 }
