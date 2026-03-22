@@ -26,6 +26,64 @@ class WCR_Validation {
         return $hours[$weekday] ?? ['closed' => 'no', 'open' => '08:00', 'close' => '16:00'];
     }
 
+    private function weekday_label($weekday) {
+        $labels = [
+            1 => 'mandag',
+            2 => 'tirsdag',
+            3 => 'onsdag',
+            4 => 'torsdag',
+            5 => 'fredag',
+            6 => 'lørdag',
+            0 => 'søndag',
+        ];
+
+        return $labels[$weekday] ?? '';
+    }
+
+    private function join_labels($items) {
+        $items = array_values(array_filter(array_map('trim', $items)));
+        $count = count($items);
+
+        if ($count === 0) return '';
+        if ($count === 1) return $items[0];
+        if ($count === 2) return $items[0] . ' og ' . $items[1];
+
+        $last = array_pop($items);
+        return implode(', ', $items) . ' og ' . $last;
+    }
+
+    private function validate_product_rules($product_id, $ymd) {
+        $allowed_dates = WCR_Product_Rules::get_allowed_dates($product_id);
+        $blocked_dates = WCR_Product_Rules::get_blocked_dates($product_id);
+        $allowed_weekdays = WCR_Product_Rules::get_allowed_weekdays($product_id);
+
+        if (!empty($allowed_dates) && !in_array($ymd, $allowed_dates, true)) {
+            $labels = array_map(function($date) {
+                return WCR_Session::native_to_display_date($date);
+            }, $allowed_dates);
+
+            return 'Dette produkt kan kun bestilles til ' . $this->join_labels($labels) . '.';
+        }
+
+        if (!empty($blocked_dates) && in_array($ymd, $blocked_dates, true)) {
+            return 'Dette produkt kan ikke bestilles til ' . WCR_Session::native_to_display_date($ymd) . '.';
+        }
+
+        if (!empty($allowed_weekdays)) {
+            $weekday = (string) date('w', strtotime($ymd));
+
+            if (!in_array($weekday, $allowed_weekdays, true)) {
+                $labels = array_map(function($day) {
+                    return $this->weekday_label((int) $day);
+                }, $allowed_weekdays);
+
+                return 'Dette produkt kan kun bestilles til ' . $this->join_labels($labels) . '.';
+            }
+        }
+
+        return true;
+    }
+
     private function validate_store_selection($date, $time) {
         $ymd = WCR_Session::date_to_ymd($date);
 
@@ -54,10 +112,7 @@ class WCR_Validation {
                 );
             }
 
-            return sprintf(
-                'Tidligste mulige dato er %s.',
-                $display_min
-            );
+            return sprintf('Tidligste mulige dato er %s.', $display_min);
         }
 
         if (get_option('wcr_closed_today', 'no') === 'yes' && $ymd === current_time('Y-m-d')) {
@@ -88,6 +143,34 @@ class WCR_Validation {
         return true;
     }
 
+    private function validate_cart_product_rules($ymd) {
+        if (!function_exists('WC') || !WC()->cart) {
+            return true;
+        }
+
+        foreach (WC()->cart->get_cart() as $cart_item) {
+            $product_id = 0;
+
+            if (!empty($cart_item['product_id'])) {
+                $product_id = absint($cart_item['product_id']);
+            } elseif (!empty($cart_item['data']) && is_a($cart_item['data'], 'WC_Product')) {
+                $product_id = $cart_item['data']->get_id();
+            }
+
+            if (!$product_id) {
+                continue;
+            }
+
+            $result = $this->validate_product_rules($product_id, $ymd);
+            if ($result !== true) {
+                $product_name = get_the_title($product_id);
+                return $product_name ? $product_name . ': ' . $result : $result;
+            }
+        }
+
+        return true;
+    }
+
     public function validate($passed, $product_id, $qty) {
         $date = WCR_Session::get_session('wcr_delivery_date');
         $time = WCR_Session::get_session('wcr_delivery_time');
@@ -102,10 +185,17 @@ class WCR_Validation {
             return false;
         }
 
-        $result = $this->validate_store_selection($date, $time);
+        $store_result = $this->validate_store_selection($date, $time);
+        if ($store_result !== true) {
+            $this->set_popup_error($store_result);
+            return false;
+        }
 
-        if ($result !== true) {
-            $this->set_popup_error($result);
+        $ymd = WCR_Session::date_to_ymd($date);
+        $product_result = $this->validate_product_rules($product_id, $ymd);
+
+        if ($product_result !== true) {
+            $this->set_popup_error($product_result);
             return false;
         }
 
@@ -121,13 +211,21 @@ class WCR_Validation {
             return;
         }
 
-        $result = $this->validate_store_selection($date, $time);
-
-        if ($result !== true) {
-            $this->set_popup_error($result);
-
+        $store_result = $this->validate_store_selection($date, $time);
+        if ($store_result !== true) {
+            $this->set_popup_error($store_result);
             wc_clear_notices();
             wc_add_notice('Ret leveringsdato/tid for at fortsætte.', 'error');
+            return;
+        }
+
+        $ymd = WCR_Session::date_to_ymd($date);
+        $product_result = $this->validate_cart_product_rules($ymd);
+
+        if ($product_result !== true) {
+            $this->set_popup_error($product_result);
+            wc_clear_notices();
+            wc_add_notice($product_result, 'error');
             return;
         }
 

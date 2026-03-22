@@ -135,13 +135,13 @@ class WCR_Shortcodes {
             return [
                 'state'    => 'closed',
                 'badge'    => 'Lukket nu',
-                'headline' => 'Vi holder lukket nu',
+                'headline' => $next
+                    ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
+                    : 'Vi holder lukket nu',
                 'message'  => $next
                     ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
                     : 'Vi holder lukket nu',
-                'detail'   => $next
-                    ? 'Åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
-                    : '',
+                'detail'   => '',
             ];
         }
 
@@ -186,9 +186,7 @@ class WCR_Shortcodes {
             'message'  => $next
                 ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
                 : 'Vi holder lukket nu',
-            'detail'   => $next
-                ? 'Åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
-                : '',
+            'detail'   => '',
         ];
     }
 
@@ -320,9 +318,9 @@ class WCR_Shortcodes {
         $items = [];
 
         foreach ($rows as $row) {
-            $date = $row['date'] ?? '';
+            $date  = $row['date'] ?? '';
             $title = trim((string) ($row['title'] ?? ''));
-            $show = ($row['show'] ?? 'no') === 'yes';
+            $show  = ($row['show'] ?? 'no') === 'yes';
 
             if (!$date || !$show) {
                 continue;
