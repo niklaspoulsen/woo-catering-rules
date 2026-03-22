@@ -27,6 +27,23 @@ class WCR_Product_Rules {
         ];
     }
 
+    private function normalize_weekdays($values) {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $clean = [];
+
+        foreach ($values as $day) {
+            $day = (string) sanitize_text_field((string) $day);
+            if (in_array($day, ['0', '1', '2', '3', '4', '5', '6'], true)) {
+                $clean[] = $day;
+            }
+        }
+
+        return array_values(array_unique($clean));
+    }
+
     public function admin_footer_script() {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         if (!$screen || $screen->post_type !== 'product') {
@@ -124,6 +141,7 @@ class WCR_Product_Rules {
 
                 if ($field.length) {
                     var currentVal = $.trim($field.val());
+
                     if ($field.is('textarea')) {
                         var lines = currentVal ? currentVal.split(/\n+/) : [];
                         if (lines.length) {
@@ -435,33 +453,6 @@ class WCR_Product_Rules {
         ];
     }
 
-    public static function is_date_allowed_for_product($product_id, $ymd) {
-        $ymd = WCR_Session::date_to_ymd($ymd);
-        if (!$ymd) {
-            return false;
-        }
-
-        $allowed_dates = self::get_allowed_dates($product_id);
-        if (!empty($allowed_dates) && !in_array($ymd, $allowed_dates, true)) {
-            return false;
-        }
-
-        $blocked_dates = self::get_blocked_dates($product_id);
-        if (!empty($blocked_dates) && in_array($ymd, $blocked_dates, true)) {
-            return false;
-        }
-
-        $allowed_weekdays = self::get_allowed_weekdays($product_id);
-        if (!empty($allowed_weekdays)) {
-            $weekday = (string) date('w', strtotime($ymd));
-            if (!in_array($weekday, $allowed_weekdays, true)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     public static function get_rule_summary($product_id) {
         $custom = self::get_custom_note($product_id);
         if ($custom !== '') {
@@ -602,6 +593,7 @@ class WCR_Product_Rules {
 
         echo '<p class="form-field">';
         echo '<label>Tilladte ugedage</label>';
+        echo '<input type="hidden" name="_wcr_allowed_weekdays_present" value="1" />';
         echo '<span class="wrap" style="display:flex;flex-wrap:wrap;gap:8px;max-width:700px;">';
 
         foreach ($this->weekday_options() as $value => $label) {
@@ -682,17 +674,9 @@ class WCR_Product_Rules {
     }
 
     public function save($product_id) {
-        $allowed_weekdays = isset($_POST['_wcr_allowed_weekdays']) ? (array) wp_unslash($_POST['_wcr_allowed_weekdays']) : [];
-        $clean_weekdays = [];
-
-        foreach ($allowed_weekdays as $day) {
-            $day = sanitize_text_field((string) $day);
-            if (in_array($day, ['0', '1', '2', '3', '4', '5', '6'], true)) {
-                $clean_weekdays[] = $day;
-            }
-        }
-
-        update_post_meta($product_id, '_wcr_allowed_weekdays', array_values(array_unique($clean_weekdays)));
+        $posted_weekdays = isset($_POST['_wcr_allowed_weekdays']) ? (array) wp_unslash($_POST['_wcr_allowed_weekdays']) : [];
+        $clean_weekdays = $this->normalize_weekdays($posted_weekdays);
+        update_post_meta($product_id, '_wcr_allowed_weekdays', $clean_weekdays);
 
         $allowed_dates_text = isset($_POST['_wcr_allowed_dates_text']) ? wp_unslash($_POST['_wcr_allowed_dates_text']) : '';
         $blocked_dates_text = isset($_POST['_wcr_blocked_dates_text']) ? wp_unslash($_POST['_wcr_blocked_dates_text']) : '';

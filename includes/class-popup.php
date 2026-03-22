@@ -57,17 +57,17 @@ class WCR_Popup {
         $delivery_saved = WCR_Session::get_session('wcr_delivery_saved', '');
 
         wp_localize_script('wcr-js', 'wcrRules', [
-            'today'          => current_time('Y-m-d'),
-            'minDate'        => WCR_Session::get_min_delivery_date(),
-            'closedToday'    => get_option('wcr_closed_today', 'no'),
-            'closedDates'    => WCR_Session::get_closed_dates(),
-            'storeHours'     => WCR_Session::get_hours(),
-            'saved'          => $delivery_saved,
-            'forcePopup'     => $force_popup,
-            'popupMessage'   => $popup_message,
-            'savedDate'      => $saved_date_ymd,
-            'savedTime'      => $saved_time,
-            'productRules'   => $this->get_current_product_rules(),
+            'today'        => current_time('Y-m-d'),
+            'minDate'      => WCR_Session::get_min_delivery_date(),
+            'closedToday'  => get_option('wcr_closed_today', 'no'),
+            'closedDates'  => WCR_Session::get_closed_dates(),
+            'storeHours'   => WCR_Session::get_hours(),
+            'saved'        => $delivery_saved,
+            'forcePopup'   => $force_popup,
+            'popupMessage' => $popup_message,
+            'savedDate'    => $saved_date_ymd,
+            'savedTime'    => $saved_time,
+            'productRules' => $this->get_current_product_rules(),
         ]);
     }
 
