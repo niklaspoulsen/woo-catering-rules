@@ -145,6 +145,54 @@ jQuery(function ($) {
     }
   }
 
+  function getActiveNativeDate() {
+    let value = '';
+    $('.wcr-delivery-date-native').each(function () {
+      const current = ($(this).val() || '').trim();
+      if (current) {
+        value = current;
+        return false;
+      }
+    });
+    return value;
+  }
+
+  function getActiveTimeValue() {
+    let value = '';
+    $('[name="wcr_delivery_time"]').each(function () {
+      const current = ($(this).val() || '').trim();
+      if (current) {
+        value = current;
+        return false;
+      }
+    });
+    return value;
+  }
+
+  function ensureProductFormFields() {
+    $('form.cart').each(function () {
+      const $form = $(this);
+
+      if (!$form.find('input[name="wcr_delivery_date"][type="hidden"]').length) {
+        $form.append('<input type="hidden" name="wcr_delivery_date" class="wcr-hidden-delivery-date" value="">');
+      }
+
+      if (!$form.find('input[name="wcr_delivery_time"][type="hidden"]').length) {
+        $form.append('<input type="hidden" name="wcr_delivery_time" class="wcr-hidden-delivery-time" value="">');
+      }
+    });
+  }
+
+  function syncProductFormFields(nativeDate, timeValue) {
+    ensureProductFormFields();
+
+    $('form.cart').each(function () {
+      const $form = $(this);
+      $form.find('input.wcr-hidden-delivery-date').val(nativeDate || '');
+      $form.find('input.wcr-hidden-delivery-time').val(timeValue || '');
+    });
+  }
+
   function syncAll(nativeDate, timeValue) {
     $('.wcr-delivery-date-native').val(nativeDate);
 
@@ -154,6 +202,8 @@ jQuery(function ($) {
         $(this).val(timeValue);
       }
     });
+
+    syncProductFormFields(nativeDate, timeValue);
 
     const displayDate = formatDisplayDate(nativeDate);
     if ($('#wcr-open-modal small').length) {
@@ -196,11 +246,17 @@ jQuery(function ($) {
     $('body').removeClass('wcr-modal-open');
   }
 
+  function hasValidSelection() {
+    return !!(getActiveNativeDate() && getActiveTimeValue());
+  }
+
   if (typeof wcrAdmin !== 'undefined' && wcrAdmin.isAdmin) {
     return;
   }
 
   applyMinDates();
+  ensureProductFormFields();
+  syncProductFormFields(getActiveNativeDate(), getActiveTimeValue());
 
   $(document).on('change', '.wcr-delivery-date-native', function () {
     const $input = $(this);
@@ -223,6 +279,8 @@ jQuery(function ($) {
       }
 
       syncAll(nativeDate, newTime);
+    } else {
+      syncProductFormFields(nativeDate, '');
     }
   });
 
@@ -257,5 +315,21 @@ jQuery(function ($) {
     try {
       localStorage.setItem('wcr_delivery_saved', 'yes');
     } catch (e) {}
+  });
+
+  $(document).on('click', '.single_add_to_cart_button', function () {
+    syncProductFormFields(getActiveNativeDate(), getActiveTimeValue());
+  });
+
+  $(document).on('submit', 'form.cart', function (e) {
+    const nativeDate = getActiveNativeDate();
+    const timeValue = getActiveTimeValue();
+
+    syncProductFormFields(nativeDate, timeValue);
+
+    if (!nativeDate || !timeValue) {
+      e.preventDefault();
+      openModal();
+    }
   });
 });

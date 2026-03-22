@@ -52,6 +52,51 @@ class WCR_Validation {
         return implode(', ', $items) . ' og ' . $last;
     }
 
+    private function get_posted_delivery_date() {
+        if (!isset($_POST['wcr_delivery_date'])) {
+            return '';
+        }
+
+        $raw_date = sanitize_text_field(wp_unslash($_POST['wcr_delivery_date']));
+        if ($raw_date === '') {
+            return '';
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw_date)) {
+            return WCR_Session::native_to_display_date($raw_date);
+        }
+
+        $ymd = WCR_Session::date_to_ymd($raw_date);
+        return $ymd ? WCR_Session::native_to_display_date($ymd) : '';
+    }
+
+    private function get_posted_delivery_time() {
+        if (!isset($_POST['wcr_delivery_time'])) {
+            return '';
+        }
+
+        $time = sanitize_text_field(wp_unslash($_POST['wcr_delivery_time']));
+        return WCR_Session::valid_time($time) ? $time : '';
+    }
+
+    private function get_effective_delivery_selection() {
+        $posted_date = $this->get_posted_delivery_date();
+        $posted_time = $this->get_posted_delivery_time();
+
+        if ($posted_date !== '') {
+            WCR_Session::set_session('wcr_delivery_date', $posted_date);
+        }
+
+        if ($posted_time !== '') {
+            WCR_Session::set_session('wcr_delivery_time', $posted_time);
+        }
+
+        return [
+            'date' => $posted_date !== '' ? $posted_date : WCR_Session::get_session('wcr_delivery_date'),
+            'time' => $posted_time !== '' ? $posted_time : WCR_Session::get_session('wcr_delivery_time'),
+        ];
+    }
+
     private function validate_product_visibility($product_id) {
         if (WCR_Product_Rules::is_product_visible_today($product_id)) {
             return true;
@@ -193,8 +238,9 @@ class WCR_Validation {
             return false;
         }
 
-        $date = WCR_Session::get_session('wcr_delivery_date');
-        $time = WCR_Session::get_session('wcr_delivery_time');
+        $selection = $this->get_effective_delivery_selection();
+        $date = $selection['date'];
+        $time = $selection['time'];
 
         if (!$date) {
             $this->set_popup_error('Vælg leveringsdato.');
@@ -220,6 +266,7 @@ class WCR_Validation {
             return false;
         }
 
+        WCR_Session::set_session('wcr_delivery_saved', 'yes');
         $this->clear_popup_error();
         return $passed;
     }

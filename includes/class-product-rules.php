@@ -6,6 +6,8 @@ class WCR_Product_Rules {
     public function __construct() {
         add_action('woocommerce_product_options_general_product_data', [$this, 'fields']);
         add_action('woocommerce_process_product_meta', [$this, 'save']);
+
+        add_action('woocommerce_single_product_summary', [$this, 'render_ordering_info'], 24);
         add_action('woocommerce_single_product_summary', [$this, 'render_note'], 26);
 
         add_action('admin_footer', [$this, 'admin_footer_script']);
@@ -523,6 +525,36 @@ class WCR_Product_Rules {
         return 'Kan bestilles: ' . implode(', ', $selected);
     }
 
+    public static function get_frontend_ordering_text($product_id) {
+        $days = self::get_allowed_weekdays($product_id);
+        $labels = [
+            '1' => 'mandag',
+            '2' => 'tirsdag',
+            '3' => 'onsdag',
+            '4' => 'torsdag',
+            '5' => 'fredag',
+            '6' => 'lørdag',
+            '0' => 'søndag',
+        ];
+
+        if (empty($days)) {
+            return 'Kan bestilles: Alle dage';
+        }
+
+        $selected = [];
+        foreach ($days as $day) {
+            if (isset($labels[$day])) {
+                $selected[] = $labels[$day];
+            }
+        }
+
+        if (empty($selected)) {
+            return 'Kan bestilles: Alle dage';
+        }
+
+        return 'Kan bestilles: ' . implode(', ', $selected);
+    }
+
     public static function get_rule_summary($product_id) {
         $custom = self::get_custom_note($product_id);
         if ($custom !== '') {
@@ -790,6 +822,25 @@ class WCR_Product_Rules {
 
         $show_note = isset($_POST['_wcr_show_rule_note']) ? 'yes' : 'no';
         update_post_meta($product_id, '_wcr_show_rule_note', $show_note);
+    }
+
+    public function render_ordering_info() {
+        global $product;
+
+        if (!$product || !is_a($product, 'WC_Product')) {
+            return;
+        }
+
+        $product_id = $product->get_id();
+        $text = self::get_frontend_ordering_text($product_id);
+
+        if (!$text) {
+            return;
+        }
+
+        echo '<div class="wcr-product-ordering-info" style="margin:8px 0 0;font-size:15px;line-height:1.5;color:#1d2327;">';
+        echo '<strong>' . esc_html($text) . '</strong>';
+        echo '</div>';
     }
 
     public function render_note() {
