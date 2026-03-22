@@ -69,37 +69,93 @@ class WCR_Product_Rules {
                 $textarea.val(lines.join('\n')).trigger('change');
             }
 
+            function closeAllPickers(exceptWrap) {
+                $('.wcr-inline-datepicker-wrap').each(function() {
+                    if (exceptWrap && $(this).is(exceptWrap)) {
+                        return;
+                    }
+                    $(this).remove();
+                });
+            }
+
+            function buildPickerWrap(target) {
+                return $(
+                    '<span class="wcr-inline-datepicker-wrap" style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                        '<input type="text" class="wcr-inline-datepicker-field" placeholder="dd/mm/yyyy" autocomplete="off" ' +
+                            'style="width:120px;" />' +
+                        '<button type="button" class="button button-primary wcr-inline-datepicker-add">Tilføj</button>' +
+                        '<button type="button" class="button wcr-inline-datepicker-cancel">Luk</button>' +
+                    '</span>'
+                ).attr('data-target', target);
+            }
+
+            function initPicker($wrap) {
+                var $input = $wrap.find('.wcr-inline-datepicker-field');
+
+                if (typeof $.fn.datepicker === 'function') {
+                    $input.datepicker({
+                        dateFormat: 'dd/mm/yy',
+                        firstDay: 1
+                    });
+
+                    setTimeout(function() {
+                        $input.trigger('focus');
+                    }, 10);
+                }
+            }
+
             $(document).on('click', '.wcr-pick-date-button', function(e) {
                 e.preventDefault();
 
                 var $button = $(this);
                 var target = $button.data('target');
+                var $actions = $button.closest('.wcr-date-actions');
+
+                if (!target || !$actions.length) return;
+
+                var $existing = $actions.find('.wcr-inline-datepicker-wrap');
+
+                if ($existing.length) {
+                    $existing.remove();
+                    return;
+                }
+
+                closeAllPickers();
+
+                var $wrap = buildPickerWrap(target);
+                $actions.append($wrap);
+                initPicker($wrap);
+            });
+
+            $(document).on('click', '.wcr-inline-datepicker-cancel', function(e) {
+                e.preventDefault();
+                $(this).closest('.wcr-inline-datepicker-wrap').remove();
+            });
+
+            $(document).on('click', '.wcr-inline-datepicker-add', function(e) {
+                e.preventDefault();
+
+                var $wrap = $(this).closest('.wcr-inline-datepicker-wrap');
+                var target = $wrap.data('target');
                 var $textarea = $('#' + target);
+                var value = $.trim($wrap.find('.wcr-inline-datepicker-field').val());
 
-                if (!$textarea.length) return;
+                if (!$textarea.length || !value) return;
 
-                var $picker = $('<input type="text" class="wcr-hidden-datepicker" style="position:absolute;left:-9999px;top:-9999px;" />');
-                $('body').append($picker);
+                appendDateToTextarea($textarea, value);
+                $wrap.remove();
+            });
 
-                $picker.datepicker({
-                    dateFormat: 'dd/mm/yy',
-                    firstDay: 1,
-                    onSelect: function(dateText) {
-                        appendDateToTextarea($textarea, dateText);
-                        $picker.datepicker('destroy');
-                        $picker.remove();
-                    },
-                    onClose: function() {
-                        setTimeout(function() {
-                            if ($picker.length) {
-                                $picker.datepicker('destroy');
-                                $picker.remove();
-                            }
-                        }, 50);
-                    }
-                });
+            $(document).on('keydown', '.wcr-inline-datepicker-field', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $(this).closest('.wcr-inline-datepicker-wrap').find('.wcr-inline-datepicker-add').trigger('click');
+                }
 
-                $picker.datepicker('show');
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    $(this).closest('.wcr-inline-datepicker-wrap').remove();
+                }
             });
 
             $(document).on('click', '.wcr-sort-dates-button', function(e) {
@@ -157,6 +213,19 @@ class WCR_Product_Rules {
                 if (!$textarea.length) return;
 
                 $textarea.val('').trigger('change');
+                closeAllPickers();
+            });
+
+            $(document).on('click', function(e) {
+                var $target = $(e.target);
+                if (
+                    !$target.closest('.wcr-date-actions').length &&
+                    !$target.hasClass('ui-datepicker-next') &&
+                    !$target.hasClass('ui-datepicker-prev') &&
+                    !$target.closest('.ui-datepicker').length
+                ) {
+                    closeAllPickers();
+                }
             });
         });
         </script>
@@ -339,7 +408,7 @@ class WCR_Product_Rules {
 
         echo '<p class="form-field" style="margin-top:-10px;">';
         echo '<label></label>';
-        echo '<span class="wrap" style="display:flex;gap:8px;flex-wrap:wrap;">';
+        echo '<span class="wrap wcr-date-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
         echo '<button type="button" class="button wcr-pick-date-button" data-target="_wcr_allowed_dates_text">Vælg dato</button>';
         echo '<button type="button" class="button wcr-sort-dates-button" data-target="_wcr_allowed_dates_text">Sorter datoer</button>';
         echo '<button type="button" class="button wcr-clear-dates-button" data-target="_wcr_allowed_dates_text">Ryd</button>';
@@ -356,7 +425,7 @@ class WCR_Product_Rules {
 
         echo '<p class="form-field" style="margin-top:-10px;">';
         echo '<label></label>';
-        echo '<span class="wrap" style="display:flex;gap:8px;flex-wrap:wrap;">';
+        echo '<span class="wrap wcr-date-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
         echo '<button type="button" class="button wcr-pick-date-button" data-target="_wcr_blocked_dates_text">Vælg dato</button>';
         echo '<button type="button" class="button wcr-sort-dates-button" data-target="_wcr_blocked_dates_text">Sorter datoer</button>';
         echo '<button type="button" class="button wcr-clear-dates-button" data-target="_wcr_blocked_dates_text">Ryd</button>';
