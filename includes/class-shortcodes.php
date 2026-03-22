@@ -7,6 +7,7 @@ class WCR_Shortcodes {
         add_action('wp_enqueue_scripts', [$this, 'assets']);
         add_shortcode('wcr_opening_hours', [$this, 'render_opening_hours']);
         add_shortcode('wcr_opening_hours_today', [$this, 'render_opening_hours_today']);
+        add_shortcode('wcr_closed_days', [$this, 'render_closed_days']);
     }
 
     public function assets() {
@@ -51,14 +52,22 @@ class WCR_Shortcodes {
         return sprintf('%02d.%02d', (int) $m[1], (int) $m[2]);
     }
 
+    private function format_date_for_frontend($ymd, $show_year = true) {
+        $timestamp = strtotime($ymd);
+        if (!$timestamp) {
+            return $ymd;
+        }
+
+        return $show_year ? wp_date('j. F Y', $timestamp) : wp_date('j. F', $timestamp);
+    }
+
     private function get_today_ymd() {
         return current_time('Y-m-d');
     }
 
     /**
      * Used by shortcodes only.
-     * IMPORTANT: This deliberately ignores "wcr_closed_today",
-     * because that option should only block ordering for today.
+     * IMPORTANT: Ignores "wcr_closed_today".
      */
     private function is_store_closed_for_display($weekday, $ymd = '') {
         if (!$ymd) {
@@ -289,6 +298,69 @@ class WCR_Shortcodes {
                     </div>
                 <?php endif; ?>
             </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    public function render_closed_days($atts = []) {
+        $atts = shortcode_atts([
+            'upcoming_only' => 'yes',
+            'show_year'     => 'yes',
+            'show_title'    => 'yes',
+            'empty_text'    => 'Ingen planlagte lukkedage.',
+        ], $atts, 'wcr_closed_days');
+
+        $upcoming_only = $atts['upcoming_only'] === 'yes';
+        $show_year     = $atts['show_year'] === 'yes';
+        $show_title    = $atts['show_title'] === 'yes';
+        $today_ymd     = current_time('Y-m-d');
+
+        $rows = WCR_Session::get_closed_days();
+        $items = [];
+
+        foreach ($rows as $row) {
+            $date = $row['date'] ?? '';
+            $title = trim((string) ($row['title'] ?? ''));
+            $show = ($row['show'] ?? 'no') === 'yes';
+
+            if (!$date || !$show) {
+                continue;
+            }
+
+            if ($upcoming_only && strcmp($date, $today_ymd) < 0) {
+                continue;
+            }
+
+            $items[] = [
+                'date'  => $date,
+                'title' => $title,
+            ];
+        }
+
+        if (empty($items)) {
+            return '<div class="wcr-closed-days-empty">' . esc_html($atts['empty_text']) . '</div>';
+        }
+
+        ob_start();
+        ?>
+        <div class="wcr-closed-days">
+            <ul class="wcr-closed-days-list">
+                <?php foreach ($items as $item) : ?>
+                    <li class="wcr-closed-days-item">
+                        <span class="wcr-closed-days-date">
+                            <?php echo esc_html($this->format_date_for_frontend($item['date'], $show_year)); ?>
+                        </span>
+
+                        <?php if ($show_title && $item['title'] !== '') : ?>
+                            <span class="wcr-closed-days-separator">—</span>
+                            <span class="wcr-closed-days-title">
+                                <?php echo esc_html($item['title']); ?>
+                            </span>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
         </div>
         <?php
         return ob_get_clean();

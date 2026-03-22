@@ -35,26 +35,6 @@ class WCR_Session {
         return is_array($hours) ? $hours : self::get_default_hours();
     }
 
-    /**
-     * Return closed dates normalized as Y-m-d.
-     */
-    public static function get_closed_dates() {
-        $dates = get_option('wcr_closed_dates', []);
-        if (!is_array($dates)) {
-            return [];
-        }
-
-        $clean = [];
-        foreach ($dates as $date) {
-            $ymd = self::date_to_ymd($date);
-            if ($ymd) {
-                $clean[] = $ymd;
-            }
-        }
-
-        return array_values(array_unique($clean));
-    }
-
     public static function date_to_ymd($date) {
         $date = trim((string) $date);
         if (!$date) return '';
@@ -89,6 +69,94 @@ class WCR_Session {
 
     public static function display_to_native_date($date) {
         return self::date_to_ymd($date);
+    }
+
+    /**
+     * Returns normalized closed day rows:
+     * [
+     *   [
+     *     'date'  => '2026-12-24',
+     *     'title' => 'Juleaften',
+     *     'show'  => 'yes',
+     *   ]
+     * ]
+     *
+     * Backward compatible with old storage format:
+     * ['2026-12-24', '2026-12-25']
+     */
+    public static function get_closed_days() {
+        $rows = get_option('wcr_closed_dates', []);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $clean = [];
+
+        foreach ($rows as $row) {
+            if (is_string($row)) {
+                $ymd = self::date_to_ymd($row);
+                if ($ymd) {
+                    $clean[] = [
+                        'date'  => $ymd,
+                        'title' => '',
+                        'show'  => 'yes',
+                    ];
+                }
+                continue;
+            }
+
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $ymd = self::date_to_ymd($row['date'] ?? '');
+            if (!$ymd) {
+                continue;
+            }
+
+            $title = sanitize_text_field((string) ($row['title'] ?? ''));
+            $show  = (($row['show'] ?? 'no') === 'yes') ? 'yes' : 'no';
+
+            $clean[] = [
+                'date'  => $ymd,
+                'title' => $title,
+                'show'  => $show,
+            ];
+        }
+
+        usort($clean, function($a, $b) {
+            return strcmp($a['date'], $b['date']);
+        });
+
+        $unique = [];
+        $seen = [];
+
+        foreach ($clean as $row) {
+            $key = $row['date'] . '|' . $row['title'] . '|' . $row['show'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $unique[] = $row;
+        }
+
+        return $unique;
+    }
+
+    /**
+     * Only the dates as Y-m-d, used for validation.
+     */
+    public static function get_closed_dates() {
+        $days = self::get_closed_days();
+        $dates = [];
+
+        foreach ($days as $day) {
+            if (!empty($day['date'])) {
+                $dates[] = $day['date'];
+            }
+        }
+
+        return array_values(array_unique($dates));
     }
 
     public static function valid_time($time) {

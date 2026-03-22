@@ -60,10 +60,6 @@ class WCR_Validation {
             );
         }
 
-        /**
-         * "Lukket i dag" should only block orders for today.
-         * It must not affect opening-hours shortcodes.
-         */
         if (get_option('wcr_closed_today', 'no') === 'yes' && $ymd === current_time('Y-m-d')) {
             return 'Butikken er midlertidigt lukket for bestillinger i dag.';
         }

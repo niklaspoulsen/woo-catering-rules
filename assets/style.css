@@ -112,10 +112,23 @@ body.wcr-modal-open {
   gap: 10px;
   align-items: center;
   margin: 0 0 10px;
+  flex-wrap: wrap;
+}
+
+.wcr-date-row--closed-day .wcr-date-input {
+  width: 180px;
 }
 
 .wcr-date-input {
   width: 180px;
+}
+
+.wcr-checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 500;
 }
 
 .wcr-hours-table th,
@@ -248,6 +261,51 @@ body.wcr-modal-open {
   text-align: right;
   color: #5f6368;
   white-space: nowrap;
+}
+
+/* Closed days shortcode */
+
+.wcr-closed-days {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.wcr-closed-days-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wcr-closed-days-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f3f4;
+  color: #202124;
+  flex-wrap: wrap;
+}
+
+.wcr-closed-days-item:last-child {
+  border-bottom: 0;
+}
+
+.wcr-closed-days-date {
+  font-weight: 600;
+}
+
+.wcr-closed-days-separator {
+  color: #9aa0a6;
+}
+
+.wcr-closed-days-title {
+  color: #5f6368;
+}
+
+.wcr-closed-days-empty {
+  color: #5f6368;
 }
 
 @media (max-width: 700px) {

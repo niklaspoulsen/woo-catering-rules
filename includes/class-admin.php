@@ -42,25 +42,50 @@ class WCR_Admin {
         ]);
     }
 
-    /**
-     * Save all closed dates normalized as Y-m-d.
-     */
     public function sanitize_closed_dates($value) {
         if (!is_array($value)) return [];
 
         $clean = [];
 
         foreach ($value as $row) {
-            $row = sanitize_text_field((string) $row);
-            if (!$row) continue;
-
-            $ymd = WCR_Session::date_to_ymd($row);
-            if ($ymd) {
-                $clean[] = $ymd;
+            if (is_string($row)) {
+                $ymd = WCR_Session::date_to_ymd($row);
+                if ($ymd) {
+                    $clean[] = [
+                        'date'  => $ymd,
+                        'title' => '',
+                        'show'  => 'yes',
+                    ];
+                }
+                continue;
             }
+
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $raw_date = sanitize_text_field((string) ($row['date'] ?? ''));
+            $ymd      = WCR_Session::date_to_ymd($raw_date);
+
+            if (!$ymd) {
+                continue;
+            }
+
+            $title = sanitize_text_field((string) ($row['title'] ?? ''));
+            $show  = (($row['show'] ?? 'no') === 'yes') ? 'yes' : 'no';
+
+            $clean[] = [
+                'date'  => $ymd,
+                'title' => $title,
+                'show'  => $show,
+            ];
         }
 
-        return array_values(array_unique($clean));
+        usort($clean, function($a, $b) {
+            return strcmp($a['date'], $b['date']);
+        });
+
+        return array_values($clean);
     }
 
     public function sanitize_store_hours($value) {
@@ -104,10 +129,18 @@ class WCR_Admin {
 
     public function page() {
         $hours = get_option('wcr_store_hours', WCR_Session::get_default_hours());
-        $closed_dates = WCR_Session::get_closed_dates();
+        $closed_days = WCR_Session::get_closed_days();
         $closed_today = get_option('wcr_closed_today', 'no');
 
-        if (!is_array($closed_dates)) $closed_dates = [];
+        if (empty($closed_days)) {
+            $closed_days = [
+                [
+                    'date'  => '',
+                    'title' => '',
+                    'show'  => 'yes',
+                ]
+            ];
+        }
         ?>
         <div class="wrap wcr-admin-wrap">
             <h1>Catering Rules</h1>
@@ -124,7 +157,7 @@ class WCR_Admin {
                                 <input type="checkbox" name="wcr_closed_today" value="yes" <?php checked($closed_today, 'yes'); ?>>
                                 Brug denne hvis butikken akut skal lukkes i dag
                             </label>
-                            <p class="description">Denne funktion blokerer kun bestillinger til i dag. Den ændrer ikke butikkens normale åbningstider.</p>
+                            <p class="description">Denne funktion blokerer kun bestillinger til i dag. Den ændrer ikke butikkens normale åbningstider eller frontend-visningen af åbningstider.</p>
                         </td>
                     </tr>
                 </table>
@@ -170,19 +203,38 @@ class WCR_Admin {
                 </table>
 
                 <h2 style="margin-top:24px;">Lukkedatoer</h2>
+                <p class="description">Her kan du oprette lukkedage med titel og vælge, om de skal vises i frontend-listen.</p>
 
                 <div id="wcr-closed-dates-list">
-                    <?php if (empty($closed_dates)) $closed_dates = ['']; ?>
-                    <?php foreach ($closed_dates as $date) : ?>
-                        <div class="wcr-date-row">
+                    <?php foreach ($closed_days as $index => $row) : ?>
+                        <div class="wcr-date-row wcr-date-row--closed-day">
                             <input
                                 type="text"
                                 class="wcr-datepicker wcr-date-input"
-                                name="wcr_closed_dates[]"
-                                value="<?php echo esc_attr($date ? WCR_Session::native_to_display_date($date) : ''); ?>"
+                                name="wcr_closed_dates[<?php echo esc_attr($index); ?>][date]"
+                                value="<?php echo esc_attr(!empty($row['date']) ? WCR_Session::native_to_display_date($row['date']) : ''); ?>"
                                 placeholder="dd/mm/yyyy"
                                 autocomplete="off"
                             >
+
+                            <input
+                                type="text"
+                                class="regular-text"
+                                name="wcr_closed_dates[<?php echo esc_attr($index); ?>][title]"
+                                value="<?php echo esc_attr($row['title'] ?? ''); ?>"
+                                placeholder="Titel, fx Juleaften"
+                            >
+
+                            <label class="wcr-checkbox-inline">
+                                <input
+                                    type="checkbox"
+                                    name="wcr_closed_dates[<?php echo esc_attr($index); ?>][show]"
+                                    value="yes"
+                                    <?php checked(($row['show'] ?? 'no'), 'yes'); ?>
+                                >
+                                Vis i frontend
+                            </label>
+
                             <button type="button" class="button wcr-remove-date">Fjern</button>
                         </div>
                     <?php endforeach; ?>
@@ -196,8 +248,34 @@ class WCR_Admin {
             </form>
 
             <template id="wcr-date-row-template">
-                <div class="wcr-date-row">
-                    <input type="text" class="wcr-datepicker wcr-date-input" name="wcr_closed_dates[]" value="" placeholder="dd/mm/yyyy" autocomplete="off">
+                <div class="wcr-date-row wcr-date-row--closed-day">
+                    <input
+                        type="text"
+                        class="wcr-datepicker wcr-date-input"
+                        name="wcr_closed_dates[__INDEX__][date]"
+                        value=""
+                        placeholder="dd/mm/yyyy"
+                        autocomplete="off"
+                    >
+
+                    <input
+                        type="text"
+                        class="regular-text"
+                        name="wcr_closed_dates[__INDEX__][title]"
+                        value=""
+                        placeholder="Titel, fx Juleaften"
+                    >
+
+                    <label class="wcr-checkbox-inline">
+                        <input
+                            type="checkbox"
+                            name="wcr_closed_dates[__INDEX__][show]"
+                            value="yes"
+                            checked
+                        >
+                        Vis i frontend
+                    </label>
+
                     <button type="button" class="button wcr-remove-date">Fjern</button>
                 </div>
             </template>

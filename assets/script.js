@@ -57,6 +57,25 @@ jQuery(function ($) {
     });
   }
 
+  function getNextClosedDayIndex() {
+    let maxIndex = -1;
+
+    $('#wcr-closed-dates-list .wcr-date-row--closed-day').each(function () {
+      $(this).find('input, select').each(function () {
+        const name = $(this).attr('name') || '';
+        const match = name.match(/wcr_closed_dates\[(\d+)\]/);
+        if (match) {
+          const index = parseInt(match[1], 10);
+          if (index > maxIndex) {
+            maxIndex = index;
+          }
+        }
+      });
+    });
+
+    return maxIndex + 1;
+  }
+
   function getMinDate() {
     return (typeof wcrRules !== 'undefined' && wcrRules.minDate) ? wcrRules.minDate : (wcrRules.today || '');
   }
@@ -156,7 +175,10 @@ jQuery(function ($) {
       const tpl = $('#wcr-date-row-template').html();
       if (!tpl) return;
 
-      const $row = $(tpl);
+      const nextIndex = getNextClosedDayIndex();
+      const html = tpl.replace(/__INDEX__/g, String(nextIndex));
+      const $row = $(html);
+
       $('#wcr-closed-dates-list').append($row);
       initAdminDatepickers($row);
     });
@@ -166,7 +188,8 @@ jQuery(function ($) {
       const total = $('#wcr-closed-dates-list .wcr-date-row').length;
 
       if (total <= 1) {
-        $row.find('input').val('');
+        $row.find('input[type="text"]').val('');
+        $row.find('input[type="checkbox"]').prop('checked', true);
         return;
       }
 
