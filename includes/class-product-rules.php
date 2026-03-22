@@ -287,7 +287,6 @@ class WCR_Product_Rules {
 
     public static function get_allowed_weekdays($product_id) {
         $value = get_post_meta($product_id, '_wcr_allowed_weekdays', true);
-
         if (!is_array($value)) {
             return [];
         }
