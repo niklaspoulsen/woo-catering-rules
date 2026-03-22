@@ -27,6 +27,18 @@ class WCR_Product_Rules {
         ];
     }
 
+    private function weekday_labels_lower() {
+        return [
+            '1' => 'mandag',
+            '2' => 'tirsdag',
+            '3' => 'onsdag',
+            '4' => 'torsdag',
+            '5' => 'fredag',
+            '6' => 'lørdag',
+            '0' => 'søndag',
+        ];
+    }
+
     private function normalize_weekdays($values) {
         if (!is_array($values)) {
             return [];
@@ -41,7 +53,48 @@ class WCR_Product_Rules {
             }
         }
 
-        return array_values(array_unique($clean));
+        $clean = array_values(array_unique($clean));
+
+        usort($clean, function($a, $b) {
+            $order = ['1', '2', '3', '4', '5', '6', '0'];
+            return array_search($a, $order, true) <=> array_search($b, $order, true);
+        });
+
+        return $clean;
+    }
+
+    private function weekdays_to_storage($values) {
+        $values = $this->normalize_weekdays($values);
+        return implode(',', $values);
+    }
+
+    private static function weekdays_from_storage($raw) {
+        if (is_array($raw)) {
+            $values = $raw;
+        } else {
+            $raw = (string) $raw;
+            if ($raw === '') {
+                return [];
+            }
+            $values = array_map('trim', explode(',', $raw));
+        }
+
+        $clean = [];
+        foreach ($values as $day) {
+            $day = (string) $day;
+            if (in_array($day, ['0', '1', '2', '3', '4', '5', '6'], true)) {
+                $clean[] = $day;
+            }
+        }
+
+        $clean = array_values(array_unique($clean));
+
+        usort($clean, function($a, $b) {
+            $order = ['1', '2', '3', '4', '5', '6', '0'];
+            return array_search($a, $order, true) <=> array_search($b, $order, true);
+        });
+
+        return $clean;
     }
 
     public function admin_footer_script() {
@@ -286,20 +339,8 @@ class WCR_Product_Rules {
     }
 
     public static function get_allowed_weekdays($product_id) {
-        $value = get_post_meta($product_id, '_wcr_allowed_weekdays', true);
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $clean = [];
-        foreach ($value as $day) {
-            $day = (string) $day;
-            if (in_array($day, ['0', '1', '2', '3', '4', '5', '6'], true)) {
-                $clean[] = $day;
-            }
-        }
-
-        return array_values(array_unique($clean));
+        $raw = get_post_meta($product_id, '_wcr_allowed_weekdays', true);
+        return self::weekdays_from_storage($raw);
     }
 
     public static function get_allowed_dates($product_id) {
@@ -452,6 +493,36 @@ class WCR_Product_Rules {
         ];
     }
 
+    public static function get_admin_ordering_text($product_id) {
+        $days = self::get_allowed_weekdays($product_id);
+        $labels = [
+            '1' => 'mandag',
+            '2' => 'tirsdag',
+            '3' => 'onsdag',
+            '4' => 'torsdag',
+            '5' => 'fredag',
+            '6' => 'lørdag',
+            '0' => 'søndag',
+        ];
+
+        if (empty($days)) {
+            return 'Kan bestilles: Alle dage';
+        }
+
+        $selected = [];
+        foreach ($days as $day) {
+            if (isset($labels[$day])) {
+                $selected[] = $labels[$day];
+            }
+        }
+
+        if (empty($selected)) {
+            return 'Kan bestilles: Alle dage';
+        }
+
+        return 'Kan bestilles: ' . implode(', ', $selected);
+    }
+
     public static function get_rule_summary($product_id) {
         $custom = self::get_custom_note($product_id);
         if ($custom !== '') {
@@ -474,11 +545,11 @@ class WCR_Product_Rules {
         $allowed_weekdays = self::get_allowed_weekdays($product_id);
         if (!empty($allowed_weekdays)) {
             $labels = [];
-            $all = (new self())->weekday_options();
+            $all = (new self())->weekday_labels_lower();
 
             foreach ($allowed_weekdays as $day) {
                 if (isset($all[$day])) {
-                    $labels[] = mb_strtolower($all[$day]);
+                    $labels[] = $all[$day];
                 }
             }
 
@@ -532,6 +603,7 @@ class WCR_Product_Rules {
         $rule_note        = self::get_custom_note($product_id);
         $show_note        = self::show_note_enabled($product_id) ? 'yes' : 'no';
         $status           = self::get_admin_visibility_status($product_id);
+        $ordering_text    = self::get_admin_ordering_text($product_id);
 
         echo '<div class="options_group">';
 
@@ -552,6 +624,24 @@ class WCR_Product_Rules {
         ">';
         echo '<strong>' . esc_html($status['label']) . '</strong><br>';
         echo esc_html($status['message']);
+        echo '</span>';
+        echo '</span>';
+        echo '</p>';
+
+        echo '<p class="form-field">';
+        echo '<label>Bestillingsoversigt</label>';
+        echo '<span class="wrap">';
+        echo '<span style="
+            display:inline-block;
+            padding:10px 12px;
+            border:1px solid #dcdcde;
+            background:#fff;
+            color:#1d2327;
+            border-radius:8px;
+            max-width:700px;
+            line-height:1.5;
+        ">';
+        echo esc_html($ordering_text);
         echo '</span>';
         echo '</span>';
         echo '</p>';
@@ -592,11 +682,10 @@ class WCR_Product_Rules {
 
         echo '<p class="form-field">';
         echo '<label>Tilladte ugedage</label>';
-        echo '<input type="hidden" name="_wcr_allowed_weekdays_present" value="1" />';
         echo '<span class="wrap" style="display:flex;flex-wrap:wrap;gap:8px;max-width:700px;">';
 
         foreach ($this->weekday_options() as $value => $label) {
-            $checked = in_array($value, $allowed_weekdays, true);
+            $checked = in_array((string) $value, $allowed_weekdays, true);
 
             echo '<label style="
                 display:inline-flex;
@@ -617,7 +706,7 @@ class WCR_Product_Rules {
         }
 
         echo '</span>';
-        echo '<span class="description" style="display:block;margin-top:8px;">Hvis der vælges ugedage her, kan produktet kun bestilles til disse ugedage.</span>';
+        echo '<span class="description" style="display:block;margin-top:8px;">Hvis ingen dage er valgt, kan produktet bestilles alle dage.</span>';
         echo '</p>';
 
         woocommerce_wp_textarea_input([
@@ -674,8 +763,8 @@ class WCR_Product_Rules {
 
     public function save($product_id) {
         $posted_weekdays = isset($_POST['_wcr_allowed_weekdays']) ? (array) wp_unslash($_POST['_wcr_allowed_weekdays']) : [];
-        $clean_weekdays = $this->normalize_weekdays($posted_weekdays);
-        update_post_meta($product_id, '_wcr_allowed_weekdays', $clean_weekdays);
+        $storage_weekdays = $this->weekdays_to_storage($posted_weekdays);
+        update_post_meta($product_id, '_wcr_allowed_weekdays', $storage_weekdays);
 
         $allowed_dates_text = isset($_POST['_wcr_allowed_dates_text']) ? wp_unslash($_POST['_wcr_allowed_dates_text']) : '';
         $blocked_dates_text = isset($_POST['_wcr_blocked_dates_text']) ? wp_unslash($_POST['_wcr_blocked_dates_text']) : '';
