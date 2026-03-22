@@ -8,7 +8,6 @@ class WCR_Product_Rules {
         add_action('woocommerce_process_product_meta', [$this, 'save']);
         add_action('woocommerce_single_product_summary', [$this, 'render_note'], 26);
 
-        add_action('admin_enqueue_scripts', [$this, 'admin_assets']);
         add_action('admin_footer', [$this, 'admin_footer_script']);
 
         add_action('pre_get_posts', [$this, 'filter_catalog_queries']);
@@ -28,25 +27,6 @@ class WCR_Product_Rules {
         ];
     }
 
-    public function admin_assets($hook) {
-        if (!in_array($hook, ['post.php', 'post-new.php'], true)) {
-            return;
-        }
-
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        if (!$screen || $screen->post_type !== 'product') {
-            return;
-        }
-
-        wp_enqueue_script('jquery-ui-datepicker');
-        wp_enqueue_style(
-            'jquery-ui-css',
-            'https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css',
-            [],
-            '1.13.2'
-        );
-    }
-
     public function admin_footer_script() {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         if (!$screen || $screen->post_type !== 'product') {
@@ -55,23 +35,40 @@ class WCR_Product_Rules {
         ?>
         <script>
         jQuery(function($) {
-            function appendDateToTextarea($textarea, value) {
-                if (!$textarea.length || !value) return;
+            function displayToNative(displayDate) {
+                var m = $.trim(displayDate).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                if (!m) return '';
+                return m[3] + '-' + m[2] + '-' + m[1];
+            }
 
-                var current = $.trim($textarea.val());
-                var lines = current ? current.split(/\n+/) : [];
+            function nativeToDisplay(nativeDate) {
+                var m = $.trim(nativeDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if (!m) return '';
+                return m[3] + '/' + m[2] + '/' + m[1];
+            }
 
-                lines = lines.map(function(item) {
-                    return $.trim(item);
-                }).filter(function(item) {
-                    return item !== '';
-                });
+            function appendDateToField($field, value) {
+                if (!$field.length) return;
 
-                if (lines.indexOf(value) === -1) {
-                    lines.push(value);
+                if ($field.is('textarea')) {
+                    var current = $.trim($field.val());
+                    var lines = current ? current.split(/\n+/) : [];
+
+                    lines = lines.map(function(item) {
+                        return $.trim(item);
+                    }).filter(function(item) {
+                        return item !== '';
+                    });
+
+                    if (lines.indexOf(value) === -1) {
+                        lines.push(value);
+                    }
+
+                    $field.val(lines.join('\n')).trigger('change');
+                    return;
                 }
 
-                $textarea.val(lines.join('\n')).trigger('change');
+                $field.val(value).trigger('change');
             }
 
             function closeAllPickers(exceptWrap) {
@@ -86,26 +83,11 @@ class WCR_Product_Rules {
             function buildPickerWrap(target) {
                 return $(
                     '<span class="wcr-inline-datepicker-wrap" style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-                        '<input type="text" class="wcr-inline-datepicker-field" placeholder="dd/mm/yyyy" autocomplete="off" style="width:120px;" />' +
+                        '<input type="date" class="wcr-inline-datepicker-field" style="min-width:160px;" />' +
                         '<button type="button" class="button button-primary wcr-inline-datepicker-add">Tilføj</button>' +
                         '<button type="button" class="button wcr-inline-datepicker-cancel">Luk</button>' +
                     '</span>'
                 ).attr('data-target', target);
-            }
-
-            function initPicker($wrap) {
-                var $input = $wrap.find('.wcr-inline-datepicker-field');
-
-                if (typeof $.fn.datepicker === 'function') {
-                    $input.datepicker({
-                        dateFormat: 'dd/mm/yy',
-                        firstDay: 1
-                    });
-
-                    setTimeout(function() {
-                        $input.trigger('focus');
-                    }, 10);
-                }
             }
 
             $(document).on('click', '.wcr-pick-date-button', function(e) {
@@ -118,7 +100,6 @@ class WCR_Product_Rules {
                 if (!target || !$actions.length) return;
 
                 var $existing = $actions.find('.wcr-inline-datepicker-wrap');
-
                 if ($existing.length) {
                     $existing.remove();
                     return;
@@ -127,8 +108,31 @@ class WCR_Product_Rules {
                 closeAllPickers();
 
                 var $wrap = buildPickerWrap(target);
+                var $field = $('#' + target);
+
+                if ($field.length) {
+                    var currentVal = $.trim($field.val());
+                    if ($field.is('textarea')) {
+                        var lines = currentVal ? currentVal.split(/\n+/) : [];
+                        if (lines.length) {
+                            var nativeValue = displayToNative(lines[lines.length - 1]);
+                            if (nativeValue) {
+                                $wrap.find('.wcr-inline-datepicker-field').val(nativeValue);
+                            }
+                        }
+                    } else {
+                        var nativeSingle = displayToNative(currentVal);
+                        if (nativeSingle) {
+                            $wrap.find('.wcr-inline-datepicker-field').val(nativeSingle);
+                        }
+                    }
+                }
+
                 $actions.append($wrap);
-                initPicker($wrap);
+
+                setTimeout(function() {
+                    $wrap.find('.wcr-inline-datepicker-field').trigger('focus');
+                }, 10);
             });
 
             $(document).on('click', '.wcr-inline-datepicker-cancel', function(e) {
@@ -141,12 +145,15 @@ class WCR_Product_Rules {
 
                 var $wrap = $(this).closest('.wcr-inline-datepicker-wrap');
                 var target = $wrap.data('target');
-                var $textarea = $('#' + target);
-                var value = $.trim($wrap.find('.wcr-inline-datepicker-field').val());
+                var $field = $('#' + target);
+                var nativeValue = $.trim($wrap.find('.wcr-inline-datepicker-field').val());
 
-                if (!$textarea.length || !value) return;
+                if (!$field.length || !nativeValue) return;
 
-                appendDateToTextarea($textarea, value);
+                var displayValue = nativeToDisplay(nativeValue);
+                if (!displayValue) return;
+
+                appendDateToField($field, displayValue);
                 $wrap.remove();
             });
 
@@ -167,7 +174,7 @@ class WCR_Product_Rules {
 
                 var target = $(this).data('target');
                 var $textarea = $('#' + target);
-                if (!$textarea.length) return;
+                if (!$textarea.length || !$textarea.is('textarea')) return;
 
                 var value = $.trim($textarea.val());
                 if (!value) return;
@@ -213,21 +220,16 @@ class WCR_Product_Rules {
                 e.preventDefault();
 
                 var target = $(this).data('target');
-                var $textarea = $('#' + target);
-                if (!$textarea.length) return;
+                var $field = $('#' + target);
+                if (!$field.length) return;
 
-                $textarea.val('').trigger('change');
+                $field.val('').trigger('change');
                 closeAllPickers();
             });
 
             $(document).on('click', function(e) {
                 var $target = $(e.target);
-                if (
-                    !$target.closest('.wcr-date-actions').length &&
-                    !$target.hasClass('ui-datepicker-next') &&
-                    !$target.hasClass('ui-datepicker-prev') &&
-                    !$target.closest('.ui-datepicker').length
-                ) {
+                if (!$target.closest('.wcr-date-actions').length) {
                     closeAllPickers();
                 }
             });
@@ -344,6 +346,58 @@ class WCR_Product_Rules {
         return '';
     }
 
+    public static function get_admin_visibility_status($product_id) {
+        $today = current_time('Y-m-d');
+        $from  = self::get_visible_from($product_id);
+        $until = self::get_visible_until($product_id);
+
+        if ($from && strcmp($today, $from) < 0) {
+            return [
+                'label'   => 'Skjult lige nu',
+                'message' => 'Produktet bliver synligt fra ' . WCR_Session::native_to_display_date($from) . '.',
+                'color'   => '#996800',
+                'bg'      => '#fff8e5',
+                'border'  => '#f0d48a',
+            ];
+        }
+
+        if ($until && strcmp($today, $until) > 0) {
+            return [
+                'label'   => 'Udløbet',
+                'message' => 'Produktets synlighedsperiode er slut.',
+                'color'   => '#8a1f1f',
+                'bg'      => '#fff5f5',
+                'border'  => '#efc2c2',
+            ];
+        }
+
+        if ($from || $until) {
+            $period = [];
+            if ($from) {
+                $period[] = 'fra ' . WCR_Session::native_to_display_date($from);
+            }
+            if ($until) {
+                $period[] = 'til ' . WCR_Session::native_to_display_date($until);
+            }
+
+            return [
+                'label'   => 'Synligt nu',
+                'message' => 'Produktet er synligt nu' . (!empty($period) ? ' (' . implode(' ', $period) . ')' : '') . '.',
+                'color'   => '#137333',
+                'bg'      => '#eef8f0',
+                'border'  => '#b8dfc0',
+            ];
+        }
+
+        return [
+            'label'   => 'Altid synligt',
+            'message' => 'Produktet har ingen synlighedsbegrænsning.',
+            'color'   => '#2271b1',
+            'bg'      => '#f0f6fc',
+            'border'  => '#b6d4ef',
+        ];
+    }
+
     public static function get_rule_summary($product_id) {
         $custom = self::get_custom_note($product_id);
         if ($custom !== '') {
@@ -423,15 +477,35 @@ class WCR_Product_Rules {
         $visible_until    = self::get_visible_until($product_id);
         $rule_note        = self::get_custom_note($product_id);
         $show_note        = self::show_note_enabled($product_id) ? 'yes' : 'no';
+        $status           = self::get_admin_visibility_status($product_id);
 
         echo '<div class="options_group">';
 
         echo '<p class="form-field"><strong>Catering-regler</strong><br><span class="description">Begræns synlighed og hvilke dage eller datoer dette produkt må bestilles til.</span></p>';
 
+        echo '<p class="form-field">';
+        echo '<label>Status</label>';
+        echo '<span class="wrap">';
+        echo '<span style="
+            display:inline-block;
+            padding:10px 12px;
+            border:1px solid ' . esc_attr($status['border']) . ';
+            background:' . esc_attr($status['bg']) . ';
+            color:' . esc_attr($status['color']) . ';
+            border-radius:8px;
+            max-width:700px;
+            line-height:1.5;
+        ">';
+        echo '<strong>' . esc_html($status['label']) . '</strong><br>';
+        echo esc_html($status['message']);
+        echo '</span>';
+        echo '</span>';
+        echo '</p>';
+
         woocommerce_wp_text_input([
             'id'          => '_wcr_visible_from',
             'label'       => 'Synlig fra dato',
-            'description' => 'Produktet vises først i shoppen fra denne dato. Format: dd/mm/yyyy.',
+            'description' => 'Produktet vises først i shoppen fra denne dato.',
             'desc_tip'    => false,
             'value'       => $visible_from ? WCR_Session::native_to_display_date($visible_from) : '',
             'placeholder' => 'dd/mm/yyyy',
@@ -448,7 +522,7 @@ class WCR_Product_Rules {
         woocommerce_wp_text_input([
             'id'          => '_wcr_visible_until',
             'label'       => 'Synlig til dato',
-            'description' => 'Produktet skjules efter denne dato. Format: dd/mm/yyyy.',
+            'description' => 'Produktet skjules efter denne dato.',
             'desc_tip'    => false,
             'value'       => $visible_until ? WCR_Session::native_to_display_date($visible_until) : '',
             'placeholder' => 'dd/mm/yyyy',
@@ -494,7 +568,7 @@ class WCR_Product_Rules {
         woocommerce_wp_textarea_input([
             'id'          => '_wcr_allowed_dates_text',
             'label'       => 'Kun tilladte datoer',
-            'description' => 'Vælg datoer med kalender-knappen eller skriv én dato pr. linje. Format: dd/mm/yyyy. Hvis dette felt er udfyldt, kan produktet kun bestilles til disse datoer. Perfekt til månedsmenuer eller nytårsmenu.',
+            'description' => 'Vælg datoer med kalender-knappen eller skriv én dato pr. linje. Hvis dette felt er udfyldt, kan produktet kun bestilles til disse datoer.',
             'desc_tip'    => false,
             'value'       => WCR_Session::format_date_list_for_textarea($allowed_dates),
         ]);
@@ -511,7 +585,7 @@ class WCR_Product_Rules {
         woocommerce_wp_textarea_input([
             'id'          => '_wcr_blocked_dates_text',
             'label'       => 'Blokerede datoer',
-            'description' => 'Vælg datoer med kalender-knappen eller skriv én dato pr. linje. Format: dd/mm/yyyy. Produktet kan ikke bestilles til disse datoer.',
+            'description' => 'Vælg datoer med kalender-knappen eller skriv én dato pr. linje. Produktet kan ikke bestilles til disse datoer.',
             'desc_tip'    => false,
             'value'       => WCR_Session::format_date_list_for_textarea($blocked_dates),
         ]);
@@ -528,7 +602,7 @@ class WCR_Product_Rules {
         woocommerce_wp_textarea_input([
             'id'          => '_wcr_rule_note',
             'label'       => 'Tekst på produktside',
-            'description' => 'Valgfri tekst som vises på produktsiden. Fx: "Kan kun bestilles til afhentning mandag til torsdag" eller "Kan kun bestilles til nytårsaften".',
+            'description' => 'Valgfri tekst som vises på produktsiden. Fx: "Kan kun bestilles til afhentning mandag til torsdag".',
             'desc_tip'    => false,
             'value'       => $rule_note,
         ]);
@@ -612,7 +686,6 @@ class WCR_Product_Rules {
         }
 
         $meta_query = (array) $query->get('meta_query');
-
         $today = current_time('Y-m-d');
 
         $meta_query[] = [
