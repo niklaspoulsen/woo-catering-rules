@@ -7,8 +7,13 @@ class WCR_Product_Rules {
         add_action('woocommerce_product_options_general_product_data', [$this, 'fields']);
         add_action('woocommerce_process_product_meta', [$this, 'save']);
         add_action('woocommerce_single_product_summary', [$this, 'render_note'], 26);
+
         add_action('admin_enqueue_scripts', [$this, 'admin_assets']);
         add_action('admin_footer', [$this, 'admin_footer_script']);
+
+        add_action('pre_get_posts', [$this, 'filter_catalog_queries']);
+        add_filter('woocommerce_product_is_visible', [$this, 'filter_product_is_visible'], 10, 2);
+        add_filter('woocommerce_related_products', [$this, 'filter_related_products'], 10, 3);
     }
 
     private function weekday_options() {
@@ -81,8 +86,7 @@ class WCR_Product_Rules {
             function buildPickerWrap(target) {
                 return $(
                     '<span class="wcr-inline-datepicker-wrap" style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-                        '<input type="text" class="wcr-inline-datepicker-field" placeholder="dd/mm/yyyy" autocomplete="off" ' +
-                            'style="width:120px;" />' +
+                        '<input type="text" class="wcr-inline-datepicker-field" placeholder="dd/mm/yyyy" autocomplete="off" style="width:120px;" />' +
                         '<button type="button" class="button button-primary wcr-inline-datepicker-add">Tilføj</button>' +
                         '<button type="button" class="button wcr-inline-datepicker-cancel">Luk</button>' +
                     '</span>'
@@ -290,12 +294,54 @@ class WCR_Product_Rules {
         return $clean;
     }
 
+    public static function get_visible_from($product_id) {
+        $value = get_post_meta($product_id, '_wcr_visible_from', true);
+        return WCR_Session::date_to_ymd($value);
+    }
+
+    public static function get_visible_until($product_id) {
+        $value = get_post_meta($product_id, '_wcr_visible_until', true);
+        return WCR_Session::date_to_ymd($value);
+    }
+
     public static function get_custom_note($product_id) {
         return trim((string) get_post_meta($product_id, '_wcr_rule_note', true));
     }
 
     public static function show_note_enabled($product_id) {
         return get_post_meta($product_id, '_wcr_show_rule_note', true) === 'yes';
+    }
+
+    public static function is_product_visible_today($product_id) {
+        $today = current_time('Y-m-d');
+        $from  = self::get_visible_from($product_id);
+        $until = self::get_visible_until($product_id);
+
+        if ($from && strcmp($today, $from) < 0) {
+            return false;
+        }
+
+        if ($until && strcmp($today, $until) > 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static function get_visibility_message($product_id) {
+        $today = current_time('Y-m-d');
+        $from  = self::get_visible_from($product_id);
+        $until = self::get_visible_until($product_id);
+
+        if ($from && strcmp($today, $from) < 0) {
+            return 'Dette produkt bliver synligt fra ' . WCR_Session::native_to_display_date($from) . '.';
+        }
+
+        if ($until && strcmp($today, $until) > 0) {
+            return 'Dette produkt er ikke længere tilgængeligt.';
+        }
+
+        return '';
     }
 
     public static function get_rule_summary($product_id) {
@@ -305,6 +351,17 @@ class WCR_Product_Rules {
         }
 
         $parts = [];
+
+        $from = self::get_visible_from($product_id);
+        $until = self::get_visible_until($product_id);
+
+        if ($from && $until) {
+            $parts[] = 'Synlig i perioden ' . WCR_Session::native_to_display_date($from) . ' - ' . WCR_Session::native_to_display_date($until);
+        } elseif ($from) {
+            $parts[] = 'Synlig fra ' . WCR_Session::native_to_display_date($from);
+        } elseif ($until) {
+            $parts[] = 'Synlig til og med ' . WCR_Session::native_to_display_date($until);
+        }
 
         $allowed_weekdays = self::get_allowed_weekdays($product_id);
         if (!empty($allowed_weekdays)) {
@@ -362,12 +419,48 @@ class WCR_Product_Rules {
         $allowed_weekdays = self::get_allowed_weekdays($product_id);
         $allowed_dates    = self::get_allowed_dates($product_id);
         $blocked_dates    = self::get_blocked_dates($product_id);
+        $visible_from     = self::get_visible_from($product_id);
+        $visible_until    = self::get_visible_until($product_id);
         $rule_note        = self::get_custom_note($product_id);
         $show_note        = self::show_note_enabled($product_id) ? 'yes' : 'no';
 
         echo '<div class="options_group">';
 
-        echo '<p class="form-field"><strong>Catering-regler</strong><br><span class="description">Begræns hvilke dage eller datoer dette produkt må bestilles til.</span></p>';
+        echo '<p class="form-field"><strong>Catering-regler</strong><br><span class="description">Begræns synlighed og hvilke dage eller datoer dette produkt må bestilles til.</span></p>';
+
+        woocommerce_wp_text_input([
+            'id'          => '_wcr_visible_from',
+            'label'       => 'Synlig fra dato',
+            'description' => 'Produktet vises først i shoppen fra denne dato. Format: dd/mm/yyyy.',
+            'desc_tip'    => false,
+            'value'       => $visible_from ? WCR_Session::native_to_display_date($visible_from) : '',
+            'placeholder' => 'dd/mm/yyyy',
+        ]);
+
+        echo '<p class="form-field" style="margin-top:-10px;">';
+        echo '<label></label>';
+        echo '<span class="wrap wcr-date-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
+        echo '<button type="button" class="button wcr-pick-date-button" data-target="_wcr_visible_from">Vælg dato</button>';
+        echo '<button type="button" class="button wcr-clear-dates-button" data-target="_wcr_visible_from">Ryd</button>';
+        echo '</span>';
+        echo '</p>';
+
+        woocommerce_wp_text_input([
+            'id'          => '_wcr_visible_until',
+            'label'       => 'Synlig til dato',
+            'description' => 'Produktet skjules efter denne dato. Format: dd/mm/yyyy.',
+            'desc_tip'    => false,
+            'value'       => $visible_until ? WCR_Session::native_to_display_date($visible_until) : '',
+            'placeholder' => 'dd/mm/yyyy',
+        ]);
+
+        echo '<p class="form-field" style="margin-top:-10px;">';
+        echo '<label></label>';
+        echo '<span class="wrap wcr-date-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
+        echo '<button type="button" class="button wcr-pick-date-button" data-target="_wcr_visible_until">Vælg dato</button>';
+        echo '<button type="button" class="button wcr-clear-dates-button" data-target="_wcr_visible_until">Ryd</button>';
+        echo '</span>';
+        echo '</p>';
 
         echo '<p class="form-field">';
         echo '<label>Tilladte ugedage</label>';
@@ -469,6 +562,12 @@ class WCR_Product_Rules {
         update_post_meta($product_id, '_wcr_allowed_dates', WCR_Session::parse_date_list_text($allowed_dates_text));
         update_post_meta($product_id, '_wcr_blocked_dates', WCR_Session::parse_date_list_text($blocked_dates_text));
 
+        $visible_from = isset($_POST['_wcr_visible_from']) ? sanitize_text_field(wp_unslash($_POST['_wcr_visible_from'])) : '';
+        $visible_until = isset($_POST['_wcr_visible_until']) ? sanitize_text_field(wp_unslash($_POST['_wcr_visible_until'])) : '';
+
+        update_post_meta($product_id, '_wcr_visible_from', WCR_Session::date_to_ymd($visible_from));
+        update_post_meta($product_id, '_wcr_visible_until', WCR_Session::date_to_ymd($visible_until));
+
         $rule_note = isset($_POST['_wcr_rule_note']) ? sanitize_textarea_field(wp_unslash($_POST['_wcr_rule_note'])) : '';
         update_post_meta($product_id, '_wcr_rule_note', $rule_note);
 
@@ -497,5 +596,89 @@ class WCR_Product_Rules {
         echo '<div class="wcr-product-rule-note" style="margin:12px 0 0;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#fafafa;">';
         echo wp_kses_post(nl2br(esc_html($text)));
         echo '</div>';
+    }
+
+    public function filter_catalog_queries($query) {
+        if (is_admin() || !$query->is_main_query()) {
+            return;
+        }
+
+        if (
+            !$query->is_post_type_archive('product') &&
+            !$query->is_tax(get_object_taxonomies('product')) &&
+            !$query->is_search()
+        ) {
+            return;
+        }
+
+        $meta_query = (array) $query->get('meta_query');
+
+        $today = current_time('Y-m-d');
+
+        $meta_query[] = [
+            'relation' => 'AND',
+            [
+                'relation' => 'OR',
+                [
+                    'key'     => '_wcr_visible_from',
+                    'compare' => 'NOT EXISTS',
+                ],
+                [
+                    'key'     => '_wcr_visible_from',
+                    'value'   => '',
+                    'compare' => '=',
+                ],
+                [
+                    'key'     => '_wcr_visible_from',
+                    'value'   => $today,
+                    'compare' => '<=',
+                    'type'    => 'DATE',
+                ],
+            ],
+            [
+                'relation' => 'OR',
+                [
+                    'key'     => '_wcr_visible_until',
+                    'compare' => 'NOT EXISTS',
+                ],
+                [
+                    'key'     => '_wcr_visible_until',
+                    'value'   => '',
+                    'compare' => '=',
+                ],
+                [
+                    'key'     => '_wcr_visible_until',
+                    'value'   => $today,
+                    'compare' => '>=',
+                    'type'    => 'DATE',
+                ],
+            ],
+        ];
+
+        $query->set('meta_query', $meta_query);
+    }
+
+    public function filter_product_is_visible($visible, $product_id) {
+        if (!$visible) {
+            return $visible;
+        }
+
+        return self::is_product_visible_today($product_id);
+    }
+
+    public function filter_related_products($related_posts, $product_id, $args) {
+        if (empty($related_posts) || !is_array($related_posts)) {
+            return $related_posts;
+        }
+
+        $filtered = [];
+
+        foreach ($related_posts as $related_id) {
+            if (self::is_product_visible_today($related_id)) {
+                $filtered[] = $related_id;
+            }
+        }
+
+        return $filtered;
     }
 }

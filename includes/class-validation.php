@@ -52,6 +52,15 @@ class WCR_Validation {
         return implode(', ', $items) . ' og ' . $last;
     }
 
+    private function validate_product_visibility($product_id) {
+        if (WCR_Product_Rules::is_product_visible_today($product_id)) {
+            return true;
+        }
+
+        $message = WCR_Product_Rules::get_visibility_message($product_id);
+        return $message !== '' ? $message : 'Dette produkt er ikke tilgængeligt lige nu.';
+    }
+
     private function validate_product_rules($product_id, $ymd) {
         $allowed_dates = WCR_Product_Rules::get_allowed_dates($product_id);
         $blocked_dates = WCR_Product_Rules::get_blocked_dates($product_id);
@@ -161,6 +170,12 @@ class WCR_Validation {
                 continue;
             }
 
+            $visibility_result = $this->validate_product_visibility($product_id);
+            if ($visibility_result !== true) {
+                $product_name = get_the_title($product_id);
+                return $product_name ? $product_name . ': ' . $visibility_result : $visibility_result;
+            }
+
             $result = $this->validate_product_rules($product_id, $ymd);
             if ($result !== true) {
                 $product_name = get_the_title($product_id);
@@ -172,6 +187,12 @@ class WCR_Validation {
     }
 
     public function validate($passed, $product_id, $qty) {
+        $visibility_result = $this->validate_product_visibility($product_id);
+        if ($visibility_result !== true) {
+            $this->set_popup_error($visibility_result);
+            return false;
+        }
+
         $date = WCR_Session::get_session('wcr_delivery_date');
         $time = WCR_Session::get_session('wcr_delivery_time');
 
