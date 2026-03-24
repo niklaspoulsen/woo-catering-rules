@@ -32,12 +32,14 @@
   line-height: 1.05;
   margin: 0 0 24px;
   font-weight: 800;
+  color: #111827;
 }
 
 .wcr-modal label {
   display: block;
   margin: 0 0 8px;
   font-weight: 600;
+  color: #111827;
 }
 
 .wcr-modal input[type="date"],
@@ -53,6 +55,7 @@
   box-sizing: border-box;
   background: #fff;
   margin-bottom: 16px;
+  color: #111827;
 }
 
 .wcr-primary-button {
@@ -75,6 +78,7 @@
   font-size: 42px;
   line-height: 1;
   cursor: pointer;
+  color: #111827;
 }
 
 body.wcr-modal-open {
@@ -86,91 +90,55 @@ body.wcr-modal-open {
   padding: 16px;
   border: 1px solid #ddd;
   background: #fafafa;
+  border-radius: 14px;
 }
 
+/* Floating levering-knap */
 .wcr-floating-button {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 120;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-width: 190px;
-  min-height: 84px;
-  padding: 14px 18px;
-  border: 1px solid #d6d9de;
+  left: 18px;
+  right: auto;
+  bottom: 18px;
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 280px;
+  border: 1px solid #e5e7eb;
   border-radius: 16px;
   background: #ffffff;
-  color: #1f2937;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+  color: #111827;
+  padding: 16px 18px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
   cursor: pointer;
   line-height: 1.25;
-  text-align: center;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  text-align: left;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.wcr-floating-button:hover,
-.wcr-floating-button:focus {
+.wcr-floating-button:hover {
   transform: translateY(-1px);
-  border-color: #b8bec8;
-  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.14);
+}
+
+.wcr-floating-button:focus {
   outline: none;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.12), 0 12px 28px rgba(0, 0, 0, 0.12);
 }
 
 .wcr-floating-button strong {
   display: block;
-  margin: 0 0 4px;
-  font-size: 28px;
-  line-height: 1;
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 1.2;
   font-weight: 800;
-  color: #b45309;
+  color: #111827;
 }
 
 .wcr-floating-button small {
   display: block;
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.35;
   color: #6b7280;
-}
-
-/* Hold knappen under minicart/sidecart overlays */
-.xoo-wsc-modal,
-.xoo-wsc-opac,
-.elementor-menu-cart__container,
-.widget_shopping_cart_content,
-.woocommerce-mini-cart,
-.offcanvas-cart,
-.cart-drawer,
-.side-cart,
-.mini-cart,
-[class*="mini-cart"],
-[class*="side-cart"],
-[class*="cart-drawer"] {
-  z-index: 9999;
-}
-
-@media (max-width: 767px) {
-  .wcr-floating-button {
-    right: 12px;
-    left: 12px;
-    bottom: 12px;
-    min-width: 0;
-    min-height: 72px;
-    width: auto;
-    border-radius: 14px;
-    padding: 12px 16px;
-  }
-
-  .wcr-floating-button strong {
-    font-size: 24px;
-  }
-
-  .wcr-floating-button small {
-    font-size: 14px;
-  }
 }
 
 .wcr-date-row {
@@ -309,97 +277,73 @@ body.wcr-modal-open {
   border-bottom: 0;
 }
 
-.wcr-opening-hours-row.is-today {
-  background: #f8f9fa;
-}
-
-.wcr-opening-hours-row.is-today .wcr-day,
-.wcr-opening-hours-row.is-today .wcr-time {
-  font-weight: 700;
-  color: #202124;
-}
-
-.wcr-day {
-  color: #202124;
-}
-
-.wcr-time {
-  text-align: right;
-  color: #5f6368;
-  white-space: nowrap;
-}
-
-/* Closed days shortcode */
-
-.wcr-closed-days {
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  background: #fff;
-  overflow: hidden;
-}
-
-.wcr-closed-days-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.wcr-closed-days-item {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f1f3f4;
-  color: #202124;
-  flex-wrap: wrap;
-}
-
-.wcr-closed-days-item:last-child {
-  border-bottom: 0;
-}
-
-.wcr-closed-days-date {
+.wcr-opening-hours-table td:first-child {
   font-weight: 600;
+  color: #202124;
+  width: 40%;
 }
 
-.wcr-closed-days-separator {
-  color: #9aa0a6;
-}
-
-.wcr-closed-days-title {
+.wcr-opening-hours-table td:last-child {
   color: #5f6368;
 }
 
-.wcr-closed-days-empty {
-  color: #5f6368;
-}
+/* Mobil */
+@media (max-width: 767px) {
+  .wcr-modal {
+    width: min(94vw, 720px);
+    padding: 22px 18px;
+    border-radius: 18px;
+  }
 
-@media (max-width: 700px) {
   .wcr-modal h2 {
-    font-size: 28px;
+    font-size: 30px;
+    margin-bottom: 18px;
   }
 
   .wcr-modal input[type="date"],
   .wcr-modal select,
   .wcr-box input[type="date"],
   .wcr-box select {
+    min-height: 52px;
     font-size: 18px;
+    border-radius: 14px;
+    padding: 0 14px;
+  }
+
+  .wcr-primary-button {
+    min-height: 56px;
+    font-size: 18px;
+    border-radius: 12px;
+  }
+
+  .wcr-floating-button {
+    left: 12px;
+    right: auto;
+    bottom: 12px;
+    min-width: 190px;
+    max-width: calc(100vw - 24px);
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+
+  .wcr-floating-button strong {
+    font-size: 16px;
+  }
+
+  .wcr-floating-button small {
+    font-size: 13px;
   }
 
   .wcr-opening-status-card {
-    flex-direction: column;
-    gap: 10px;
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .wcr-opening-hours {
+    border-radius: 14px;
   }
 
   .wcr-opening-hours-table td {
     padding: 12px 14px;
-  }
-
-  .wcr-time {
-    text-align: right;
-  }
-
-  .wcr-opening-status-headline {
-    font-size: 17px;
   }
 }
