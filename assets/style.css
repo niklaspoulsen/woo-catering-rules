@@ -90,21 +90,87 @@ body.wcr-modal-open {
 
 .wcr-floating-button {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 8999;
-  border: 0;
-  border-radius: 10px;
-  background: #111827;
-  color: #fff;
-  padding: 12px 14px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  right: 20px;
+  bottom: 20px;
+  z-index: 120;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 190px;
+  min-height: 84px;
+  padding: 14px 18px;
+  border: 1px solid #d6d9de;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #1f2937;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
   cursor: pointer;
-  line-height: 1.2;
+  line-height: 1.25;
+  text-align: center;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.wcr-floating-button:hover,
+.wcr-floating-button:focus {
+  transform: translateY(-1px);
+  border-color: #b8bec8;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+  outline: none;
+}
+
+.wcr-floating-button strong {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 800;
+  color: #b45309;
 }
 
 .wcr-floating-button small {
-  color: #d1d5db;
+  display: block;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  color: #6b7280;
+}
+
+/* Hold knappen under minicart/sidecart overlays */
+.xoo-wsc-modal,
+.xoo-wsc-opac,
+.elementor-menu-cart__container,
+.widget_shopping_cart_content,
+.woocommerce-mini-cart,
+.offcanvas-cart,
+.cart-drawer,
+.side-cart,
+.mini-cart,
+[class*="mini-cart"],
+[class*="side-cart"],
+[class*="cart-drawer"] {
+  z-index: 9999;
+}
+
+@media (max-width: 767px) {
+  .wcr-floating-button {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    min-width: 0;
+    min-height: 72px;
+    width: auto;
+    border-radius: 14px;
+    padding: 12px 16px;
+  }
+
+  .wcr-floating-button strong {
+    font-size: 24px;
+  }
+
+  .wcr-floating-button small {
+    font-size: 14px;
+  }
 }
 
 .wcr-date-row {
