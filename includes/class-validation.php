@@ -7,6 +7,7 @@ class WCR_Validation {
         add_filter('woocommerce_add_to_cart_validation', [$this, 'validate'], 10, 3);
         add_action('woocommerce_check_cart_items', [$this, 'validate_cart']);
         add_action('woocommerce_checkout_process', [$this, 'validate_cart']);
+        add_action('woocommerce_store_api_checkout_update_order_from_request', [$this, 'validate_store_api_checkout'], 5, 2);
     }
 
     private function set_popup_error($message) {
@@ -20,7 +21,7 @@ class WCR_Validation {
     }
 
     private function get_hours_row($ymd) {
-        $weekday = (int) date('w', strtotime($ymd));
+        $weekday = WCR_Session::ymd_to_weekday($ymd);
         $hours   = WCR_Session::get_hours();
 
         return $hours[$weekday] ?? ['closed' => 'no', 'open' => '08:00', 'close' => '16:00'];
@@ -124,7 +125,7 @@ class WCR_Validation {
         }
 
         if (!empty($allowed_weekdays)) {
-            $weekday = (string) date('w', strtotime($ymd));
+            $weekday = (string) WCR_Session::ymd_to_weekday($ymd);
 
             if (!in_array($weekday, $allowed_weekdays, true)) {
                 $labels = array_map(function($day) {
@@ -169,7 +170,7 @@ class WCR_Validation {
             return sprintf('Tidligste mulige dato er %s.', $display_min);
         }
 
-        if (get_option('wcr_closed_today', 'no') === 'yes' && $ymd === current_time('Y-m-d')) {
+        if (get_option('wcr_closed_today', 'no') === 'yes' && $ymd === wp_date('Y-m-d')) {
             return 'Butikken er midlertidigt lukket for bestillinger i dag.';
         }
 
@@ -271,6 +272,42 @@ class WCR_Validation {
         return $passed;
     }
 
+
+    private function get_store_api_delivery_selection($request) {
+        $date = WCR_Session::get_session('wcr_delivery_date');
+        $time = WCR_Session::get_session('wcr_delivery_time');
+
+        if ($request instanceof WP_REST_Request) {
+            $extensions = $request->get_param('extensions');
+            if (is_array($extensions)) {
+                $wcr = $extensions['woo-catering-rules'] ?? $extensions['wcr'] ?? [];
+                if (is_array($wcr)) {
+                    if (!empty($wcr['delivery_date'])) {
+                        $date = sanitize_text_field((string) $wcr['delivery_date']);
+                    }
+                    if (!empty($wcr['delivery_time'])) {
+                        $time = sanitize_text_field((string) $wcr['delivery_time']);
+                    }
+                }
+            }
+        }
+
+        $ymd = WCR_Session::date_to_ymd($date);
+        if ($ymd) {
+            $date = WCR_Session::native_to_display_date($ymd);
+            WCR_Session::set_session('wcr_delivery_date', $date);
+        }
+
+        if (WCR_Session::valid_time($time)) {
+            WCR_Session::set_session('wcr_delivery_time', $time);
+        }
+
+        return [
+            'date' => $date,
+            'time' => $time,
+        ];
+    }
+
     public function validate_cart() {
         $date = WCR_Session::get_session('wcr_delivery_date');
         $time = WCR_Session::get_session('wcr_delivery_time');
@@ -299,4 +336,33 @@ class WCR_Validation {
 
         $this->clear_popup_error();
     }
+
+    public function validate_store_api_checkout($order, $request) {
+        $selection = $this->get_store_api_delivery_selection($request);
+        $date = $selection['date'];
+        $time = $selection['time'];
+
+        if (!$date || !$time) {
+            $this->set_popup_error('Vælg leveringsdato og leveringstid.');
+            throw new Exception('Vælg leveringsdato og leveringstid.');
+        }
+
+        $store_result = $this->validate_store_selection($date, $time);
+        if ($store_result !== true) {
+            $this->set_popup_error($store_result);
+            throw new Exception($store_result);
+        }
+
+        $ymd = WCR_Session::date_to_ymd($date);
+        $product_result = $this->validate_cart_product_rules($ymd);
+
+        if ($product_result !== true) {
+            $this->set_popup_error($product_result);
+            throw new Exception($product_result);
+        }
+
+        WCR_Session::set_session('wcr_delivery_saved', 'yes');
+        $this->clear_popup_error();
+    }
+
 }

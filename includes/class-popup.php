@@ -39,16 +39,19 @@ class WCR_Popup {
 
         wp_localize_script('wcr-js', 'wcrRules', [
             'isAdmin'       => false,
+            'isProduct'     => is_product(),
+            'requireSelectionBeforeBuild' => true,
             'closedDates'   => WCR_Session::get_closed_dates(),
             'storeHours'    => WCR_Session::get_hours(),
             'closedToday'   => get_option('wcr_closed_today', 'no'),
-            'today'         => current_time('Y-m-d'),
+            'today'         => wp_date('Y-m-d'),
             'saved'         => WCR_Session::get_session('wcr_delivery_saved'),
             'minDate'       => WCR_Session::get_min_delivery_date(),
             'leadTimeDays'  => WCR_Session::get_required_lead_time_days(),
             'forcePopup'    => WCR_Session::get_session('wcr_force_popup') === 'yes',
             'popupMessage'  => WCR_Session::get_session('wcr_popup_message'),
             'productRules'  => $product_rules,
+            'nonce'         => wp_create_nonce('wcr_delivery_selection'),
         ]);
     }
 
@@ -73,6 +76,7 @@ class WCR_Popup {
         $date_value = $this->get_date_value_for_input();
         $time_value = $this->get_time_value();
         ?>
+        <input type="hidden" name="wcr_nonce" value="<?php echo esc_attr(wp_create_nonce('wcr_delivery_selection')); ?>">
         <label for="wcr_delivery_date_<?php echo esc_attr($context); ?>">Dato</label>
         <input
             type="date"

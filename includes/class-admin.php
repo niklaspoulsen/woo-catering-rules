@@ -97,11 +97,27 @@ class WCR_Admin {
             $open = isset($row['open']) ? sanitize_text_field((string) $row['open']) : $default_row['open'];
             $close = isset($row['close']) ? sanitize_text_field((string) $row['close']) : $default_row['close'];
             $closed = isset($row['closed']) && $row['closed'] === 'yes' ? 'yes' : 'no';
+            $pickup_only = isset($row['pickup_only']) && $row['pickup_only'] === 'yes' ? 'yes' : 'no';
+            $note = isset($row['note']) ? sanitize_textarea_field((string) $row['note']) : '';
+            $pickup_text = isset($row['pickup_text']) ? sanitize_textarea_field((string) $row['pickup_text']) : WCR_Session::get_default_pickup_only_text();
+
+            if ($pickup_text === '') {
+                $pickup_text = WCR_Session::get_default_pickup_only_text();
+            }
+
+            // Pickup-only means the store is not generally open, but order pickup is available in this time window.
+            // It must therefore not be saved as a fully closed day, otherwise date/time validation will block orders.
+            if ($pickup_only === 'yes') {
+                $closed = 'no';
+            }
 
             $clean[$weekday] = [
-                'closed' => $closed,
-                'open'   => WCR_Session::valid_time($open) ? $open : $default_row['open'],
-                'close'  => WCR_Session::valid_time($close) ? $close : $default_row['close'],
+                'closed'      => $closed,
+                'open'        => WCR_Session::valid_time($open) ? $open : $default_row['open'],
+                'close'       => WCR_Session::valid_time($close) ? $close : $default_row['close'],
+                'note'        => $note,
+                'pickup_only' => $pickup_only,
+                'pickup_text' => $pickup_text,
             ];
         }
 
@@ -168,8 +184,10 @@ class WCR_Admin {
                         <tr>
                             <th>Ugedag</th>
                             <th>Lukket</th>
+                            <th>Kun afhentning</th>
                             <th>Åbner</th>
                             <th>Lukker</th>
+                            <th>Tekst til frontend</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -185,7 +203,7 @@ class WCR_Admin {
                     ];
 
                     foreach ($labels as $weekday => $label) :
-                        $row = isset($hours[$weekday]) ? $hours[$weekday] : ['closed' => 'no', 'open' => '08:00', 'close' => '16:00'];
+                        $row = isset($hours[$weekday]) ? $hours[$weekday] : ['closed' => 'no', 'open' => '08:00', 'close' => '16:00', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => WCR_Session::get_default_pickup_only_text()];
                     ?>
                         <tr>
                             <td><strong><?php echo esc_html($label); ?></strong></td>
@@ -195,8 +213,33 @@ class WCR_Admin {
                                     Lukket
                                 </label>
                             </td>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="wcr_store_hours[<?php echo esc_attr($weekday); ?>][pickup_only]" value="yes" <?php checked(($row['pickup_only'] ?? 'no'), 'yes'); ?>>
+                                    Kun afhentning
+                                </label>
+                                <p class="description">Bruges fx søndag, hvor butikken ikke er åben normalt, men bestillinger kan afhentes.</p>
+                            </td>
                             <td><input type="time" step="900" name="wcr_store_hours[<?php echo esc_attr($weekday); ?>][open]" value="<?php echo esc_attr($row['open']); ?>"></td>
                             <td><input type="time" step="900" name="wcr_store_hours[<?php echo esc_attr($weekday); ?>][close]" value="<?php echo esc_attr($row['close']); ?>"></td>
+                            <td>
+                                <textarea
+                                    name="wcr_store_hours[<?php echo esc_attr($weekday); ?>][note]"
+                                    rows="2"
+                                    class="large-text"
+                                    placeholder="Almindelig ekstra tekst under åbningstiden"
+                                ><?php echo esc_textarea($row['note'] ?? ''); ?></textarea>
+                                <p class="description">Vises under tidspunktet ved almindelige åbne dage. Kan efterlades tom.</p>
+
+                                <label style="display:block;margin-top:8px;font-weight:600;">Tekst ved kun afhentning</label>
+                                <textarea
+                                    name="wcr_store_hours[<?php echo esc_attr($weekday); ?>][pickup_text]"
+                                    rows="2"
+                                    class="large-text"
+                                    placeholder="Kun åbent for afhentning af bestillinger"
+                                ><?php echo esc_textarea($row['pickup_text'] ?? WCR_Session::get_default_pickup_only_text()); ?></textarea>
+                                <p class="description">Bruges når “Kun afhentning” er markeret.</p>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

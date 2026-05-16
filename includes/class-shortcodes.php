@@ -53,7 +53,7 @@ class WCR_Shortcodes {
     }
 
     private function format_date_for_frontend($ymd, $show_year = true) {
-        $timestamp = strtotime($ymd);
+        $timestamp = strtotime($ymd . ' 12:00:00');
         if (!$timestamp) {
             return $ymd;
         }
@@ -65,6 +65,32 @@ class WCR_Shortcodes {
         return current_time('Y-m-d');
     }
 
+    private function get_closed_day_by_date($ymd) {
+        $ymd = WCR_Session::date_to_ymd($ymd);
+        if (!$ymd) {
+            return null;
+        }
+
+        $closed_days = WCR_Session::get_closed_days();
+
+        foreach ($closed_days as $day) {
+            if (($day['date'] ?? '') === $ymd) {
+                return $day;
+            }
+        }
+
+        return null;
+    }
+
+    private function get_closed_day_title($ymd) {
+        $day = $this->get_closed_day_by_date($ymd);
+        if (!$day) {
+            return '';
+        }
+
+        return trim((string) ($day['title'] ?? ''));
+    }
+
     /**
      * Used by shortcodes only.
      * IMPORTANT: Ignores "wcr_closed_today".
@@ -74,20 +100,34 @@ class WCR_Shortcodes {
             $ymd = $this->get_today_ymd();
         }
 
-        $closed_dates = WCR_Session::get_closed_dates();
-        if (in_array($ymd, $closed_dates, true)) {
+        if ($this->get_closed_day_by_date($ymd)) {
             return true;
         }
 
         $hours = WCR_Session::get_hours();
-        $row   = $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
+        $row   = $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => '', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => WCR_Session::get_default_pickup_only_text()];
 
         return (($row['closed'] ?? 'yes') === 'yes');
     }
 
     private function get_row_for_day($weekday) {
         $hours = WCR_Session::get_hours();
-        return $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
+        return $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => '', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => WCR_Session::get_default_pickup_only_text()];
+    }
+
+    private function get_row_note($row) {
+        $pickup_only = (($row['pickup_only'] ?? 'no') === 'yes');
+
+        if ($pickup_only) {
+            $pickup_text = trim((string) ($row['pickup_text'] ?? ''));
+            return $pickup_text !== '' ? $pickup_text : WCR_Session::get_default_pickup_only_text();
+        }
+
+        return trim((string) ($row['note'] ?? ''));
+    }
+
+    private function is_pickup_only_row($row) {
+        return (($row['pickup_only'] ?? 'no') === 'yes');
     }
 
     private function find_next_open_day($today_ymd) {
@@ -99,8 +139,8 @@ class WCR_Shortcodes {
                 continue;
             }
 
-            $weekday = (int) date('w', $timestamp);
-            $ymd     = date('Y-m-d', $timestamp);
+            $weekday = (int) wp_date('w', $timestamp);
+            $ymd     = wp_date('Y-m-d', $timestamp);
 
             if ($this->is_store_closed_for_display($weekday, $ymd)) {
                 continue;
@@ -121,27 +161,35 @@ class WCR_Shortcodes {
     }
 
     private function get_current_status_data() {
-        $today_ymd  = $this->get_today_ymd();
-        $today      = (int) current_time('w');
-        $row        = $this->get_row_for_day($today);
-        $now        = current_time('H:i');
-        $open       = $row['open'] ?? '';
-        $close      = $row['close'] ?? '';
-        $closed_day = $this->is_store_closed_for_display($today, $today_ymd);
+        $today_ymd        = $this->get_today_ymd();
+        $today            = (int) current_time('w');
+        $row              = $this->get_row_for_day($today);
+        $now              = current_time('H:i');
+        $open             = $row['open'] ?? '';
+        $close            = $row['close'] ?? '';
+        $closed_day_title = $this->get_closed_day_title($today_ymd);
+        $closed_day       = $this->is_store_closed_for_display($today, $today_ymd);
 
         if ($closed_day) {
             $next = $this->find_next_open_day($today_ymd);
+            $headline = $closed_day_title !== '' ? $closed_day_title : 'Vi holder lukket nu';
+            $message  = $headline;
+            $detail   = $next
+                ? 'Vi åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
+                : '';
+
+            if ($closed_day_title === '' && $next) {
+                $headline = 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open']);
+                $message = $headline;
+                $detail = '';
+            }
 
             return [
                 'state'    => 'closed',
                 'badge'    => 'Lukket nu',
-                'headline' => $next
-                    ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
-                    : 'Vi holder lukket nu',
-                'message'  => $next
-                    ? 'Vi holder lukket nu, men åbner igen ' . $next['label'] . ' kl. ' . $this->format_time($next['open'])
-                    : 'Vi holder lukket nu',
-                'detail'   => '',
+                'headline' => $headline,
+                'message'  => $message,
+                'detail'   => $detail,
             ];
         }
 
@@ -156,22 +204,42 @@ class WCR_Shortcodes {
         }
 
         if (strcmp($now, $open) < 0) {
+            if ($this->is_pickup_only_row($row)) {
+                return [
+                    'state'    => 'opening-later',
+                    'badge'    => 'Afhentning',
+                    'headline' => 'Afhentning i dag fra ' . $this->format_time($open),
+                    'message'  => 'Afhentning i dag fra ' . $this->format_time($open),
+                    'detail'   => $this->get_row_note($row),
+                ];
+            }
+
             return [
                 'state'    => 'opening-later',
                 'badge'    => 'Lukket nu',
                 'headline' => 'Vi åbner i dag kl. ' . $this->format_time($open),
                 'message'  => 'Vi åbner i dag kl. ' . $this->format_time($open),
-                'detail'   => 'Dagens åbningstid er ' . $this->format_time($open) . ' - ' . $this->format_time($close),
+                'detail'   => $this->get_row_note($row) ?: 'Dagens åbningstid er ' . $this->format_time($open) . ' - ' . $this->format_time($close),
             ];
         }
 
         if (strcmp($now, $open) >= 0 && strcmp($now, $close) < 0) {
+            if ($this->is_pickup_only_row($row)) {
+                return [
+                    'state'    => 'open',
+                    'badge'    => 'Afhentning',
+                    'headline' => 'Afhentning i dag indtil ' . $this->format_time($close),
+                    'message'  => 'Afhentning i dag indtil ' . $this->format_time($close),
+                    'detail'   => $this->get_row_note($row),
+                ];
+            }
+
             return [
                 'state'    => 'open',
                 'badge'    => 'Åben nu',
                 'headline' => 'Åbent i dag indtil ' . $this->format_time($close),
                 'message'  => 'Åbent i dag indtil ' . $this->format_time($close),
-                'detail'   => 'I dag: ' . $this->format_time($open) . ' - ' . $this->format_time($close),
+                'detail'   => $this->get_row_note($row) ?: 'I dag: ' . $this->format_time($open) . ' - ' . $this->format_time($close),
             ];
         }
 
@@ -188,6 +256,29 @@ class WCR_Shortcodes {
                 : 'Vi holder lukket nu',
             'detail'   => '',
         ];
+    }
+
+    private function render_hours_value($row, $is_closed, $closed_text = '') {
+        if ($is_closed) {
+            $html = '<span class="wcr-time-main">Lukket</span>';
+
+            if ($closed_text !== '') {
+                $html .= '<span class="wcr-time-note">' . esc_html($closed_text) . '</span>';
+            }
+
+            return $html;
+        }
+
+        $time = trim($this->format_time($row['open'] ?? '') . ' - ' . $this->format_time($row['close'] ?? ''));
+        $note = $this->get_row_note($row);
+
+        $html = '<span class="wcr-time-main">' . esc_html($time) . '</span>';
+
+        if ($note !== '') {
+            $html .= '<span class="wcr-time-note">' . esc_html($note) . '</span>';
+        }
+
+        return $html;
     }
 
     public function render_opening_hours($atts = []) {
@@ -231,12 +322,13 @@ class WCR_Shortcodes {
                 <table class="wcr-opening-hours-table">
                     <tbody>
                     <?php foreach ($labels as $weekday => $label) :
-                        $row = $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => ''];
-
+                        $row = $hours[$weekday] ?? ['closed' => 'yes', 'open' => '', 'close' => '', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => WCR_Session::get_default_pickup_only_text()];
                         $is_closed = (($row['closed'] ?? 'yes') === 'yes');
+                        $closed_text = '';
 
                         if ($weekday === $today && $this->is_store_closed_for_display($weekday, $today_ymd)) {
                             $is_closed = true;
+                            $closed_text = $this->get_closed_day_title($today_ymd);
                         }
 
                         if ($is_closed && !$show_closed) {
@@ -252,11 +344,7 @@ class WCR_Shortcodes {
                         <tr class="<?php echo esc_attr(implode(' ', $classes)); ?>">
                             <td class="wcr-day"><?php echo esc_html($label); ?></td>
                             <td class="wcr-time">
-                                <?php if ($is_closed) : ?>
-                                    Lukket
-                                <?php else : ?>
-                                    <?php echo esc_html($this->format_time($row['open']) . ' - ' . $this->format_time($row['close'])); ?>
-                                <?php endif; ?>
+                                <?php echo wp_kses_post($this->render_hours_value($row, $is_closed, $closed_text)); ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -318,7 +406,7 @@ class WCR_Shortcodes {
         $items = [];
 
         foreach ($rows as $row) {
-            $date  = $row['date'] ?? '';
+            $date  = WCR_Session::date_to_ymd($row['date'] ?? '');
             $title = trim((string) ($row['title'] ?? ''));
             $show  = ($row['show'] ?? 'no') === 'yes';
 

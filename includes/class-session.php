@@ -18,21 +18,41 @@ class WCR_Session {
         WC()->session->set($key, $value);
     }
 
+    public static function get_default_pickup_only_text() {
+        return 'Kun åbent for afhentning af bestillinger';
+    }
+
     public static function get_default_hours() {
+        $pickup_text = self::get_default_pickup_only_text();
+
         return [
-            1 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            2 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            3 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            4 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            5 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00'],
-            6 => ['closed' => 'no',  'open' => '10:00', 'close' => '14:00'],
-            0 => ['closed' => 'yes', 'open' => '10:00', 'close' => '14:00'],
+            1 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => $pickup_text],
+            2 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => $pickup_text],
+            3 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => $pickup_text],
+            4 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => $pickup_text],
+            5 => ['closed' => 'no',  'open' => '08:00', 'close' => '16:00', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => $pickup_text],
+            6 => ['closed' => 'no',  'open' => '10:00', 'close' => '14:00', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => $pickup_text],
+            0 => ['closed' => 'yes', 'open' => '10:00', 'close' => '14:00', 'note' => '', 'pickup_only' => 'no', 'pickup_text' => $pickup_text],
         ];
     }
 
     public static function get_hours() {
         $hours = get_option('wcr_store_hours', self::get_default_hours());
         return is_array($hours) ? $hours : self::get_default_hours();
+    }
+
+    public static function ymd_to_weekday($ymd) {
+        $ymd = self::date_to_ymd($ymd);
+        if (!$ymd) {
+            return 0;
+        }
+
+        $timestamp = strtotime($ymd . ' 12:00:00');
+        if (!$timestamp) {
+            return 0;
+        }
+
+        return (int) wp_date('w', $timestamp);
     }
 
     public static function date_to_ymd($date) {
@@ -272,10 +292,10 @@ class WCR_Session {
 
     public static function get_min_delivery_date() {
         $lead_days = self::get_required_lead_time_days();
-        $today     = current_time('Y-m-d');
+        $today     = wp_date('Y-m-d');
 
         try {
-            $dt = new DateTime($today);
+            $dt = new DateTime($today, wp_timezone());
             if ($lead_days > 0) {
                 $dt->modify('+' . $lead_days . ' day');
             }
@@ -292,21 +312,36 @@ class WCR_Session {
     public function capture() {
         if (!function_exists('WC')) return;
 
+        if (!isset($_POST['wcr_delivery_date']) && !isset($_POST['wcr_delivery_time'])) {
+            return;
+        }
+
+        $has_valid_nonce = false;
+        if (isset($_POST['wcr_nonce'])) {
+            $nonce = sanitize_text_field(wp_unslash($_POST['wcr_nonce']));
+            $has_valid_nonce = wp_verify_nonce($nonce, 'wcr_delivery_selection');
+        }
+
+        // Add-to-cart forms already pass through WooCommerce validation, but WCR forms should have their own nonce.
+        if (!$has_valid_nonce && !isset($_POST['add-to-cart'])) {
+            return;
+        }
+
         if (isset($_POST['wcr_delivery_date'])) {
             $raw_date = sanitize_text_field(wp_unslash($_POST['wcr_delivery_date']));
+            $ymd = self::date_to_ymd($raw_date);
+            $display_date = $ymd ? self::native_to_display_date($ymd) : '';
 
-            $display_date = '';
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw_date)) {
-                $display_date = self::native_to_display_date($raw_date);
-            } else {
-                $display_date = $raw_date;
+            if ($display_date) {
+                self::set_session('wcr_delivery_date', $display_date);
             }
-
-            self::set_session('wcr_delivery_date', $display_date);
         }
 
         if (isset($_POST['wcr_delivery_time'])) {
-            self::set_session('wcr_delivery_time', sanitize_text_field(wp_unslash($_POST['wcr_delivery_time'])));
+            $time = sanitize_text_field(wp_unslash($_POST['wcr_delivery_time']));
+            if (self::valid_time($time)) {
+                self::set_session('wcr_delivery_time', $time);
+            }
         }
 
         if (!empty($_POST['wcr_save_delivery'])) {

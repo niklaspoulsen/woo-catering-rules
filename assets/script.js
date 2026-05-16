@@ -180,6 +180,10 @@ jQuery(function ($) {
       if (!$form.find('input[name="wcr_delivery_time"][type="hidden"]').length) {
         $form.append('<input type="hidden" name="wcr_delivery_time" class="wcr-hidden-delivery-time" value="">');
       }
+
+      if (!$form.find('input[name="wcr_nonce"][type="hidden"]').length && typeof wcrRules !== 'undefined' && wcrRules.nonce) {
+        $form.append('<input type="hidden" name="wcr_nonce" class="wcr-hidden-nonce" value="' + String(wcrRules.nonce).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '">');
+      }
     });
   }
 
@@ -204,6 +208,7 @@ jQuery(function ($) {
     });
 
     syncProductFormFields(nativeDate, timeValue);
+    updateProductBuilderLock();
 
     const displayDate = formatDisplayDate(nativeDate);
     if ($('#wcr-open-modal small').length) {
@@ -250,13 +255,178 @@ jQuery(function ($) {
     return !!(getActiveNativeDate() && getActiveTimeValue());
   }
 
+
+  function productBuilderLockEnabled() {
+    return typeof wcrRules !== 'undefined' && !!wcrRules.isProduct && wcrRules.requireSelectionBeforeBuild !== false;
+  }
+
+  function getProductBuilderLockMessage() {
+    return 'Vælg dato og tidspunkt, før du sammensætter din menu.';
+  }
+
+  function ensureProductBuilderLockNotice($form) {
+    let $notice = $form.prev('.wcr-product-builder-lock');
+
+    if (!$notice.length) {
+      $notice = $(
+        '<div class="wcr-product-builder-lock" role="status">' +
+          '<div class="wcr-product-builder-lock__title">Vælg levering først</div>' +
+          '<div class="wcr-product-builder-lock__text"></div>' +
+          '<button type="button" class="button wcr-product-builder-lock__button">Vælg dato og tidspunkt</button>' +
+        '</div>'
+      );
+
+      $form.before($notice);
+    }
+
+    $notice.find('.wcr-product-builder-lock__text').text(getProductBuilderLockMessage());
+    return $notice;
+  }
+
+  function getLockableProductControls($form) {
+    return $form
+      .find('input, select, textarea, button')
+      .not('[type="hidden"]')
+      .not('[name="wcr_delivery_date"]')
+      .not('[name="wcr_delivery_time"]')
+      .not('[name="wcr_nonce"]')
+      .not('.wcr-product-builder-lock__button')
+      .not('#wcr-open-modal')
+      .not('[data-wcr-open-modal="1"]');
+  }
+
+  function updateProductBuilderLock() {
+    if (!productBuilderLockEnabled()) return;
+
+    const isUnlocked = hasValidSelection();
+
+    $('form.cart').each(function () {
+      const $form = $(this);
+      const $notice = ensureProductBuilderLockNotice($form);
+      const $controls = getLockableProductControls($form);
+
+      if (isUnlocked) {
+        $form.removeClass('wcr-menu-builder-is-locked');
+        $notice.hide();
+
+        $controls.each(function () {
+          const $control = $(this);
+          if ($control.attr('data-wcr-locked') === '1') {
+            $control.prop('disabled', false).removeAttr('data-wcr-locked');
+          }
+        });
+
+        return;
+      }
+
+      $form.addClass('wcr-menu-builder-is-locked');
+      $notice.show();
+
+      $controls.each(function () {
+        const $control = $(this);
+        if (!$control.prop('disabled')) {
+          $control.attr('data-wcr-locked', '1').prop('disabled', true);
+        }
+      });
+    });
+  }
+
+  function initAdminDatepickers($scope) {
+    if (!$.fn.datepicker) return;
+
+    const $target = $scope && $scope.length ? $scope.find('.wcr-datepicker') : $('.wcr-datepicker');
+
+    $target.each(function () {
+      const $input = $(this);
+
+      if ($input.hasClass('hasDatepicker')) {
+        return;
+      }
+
+      $input.datepicker({
+        dateFormat: 'dd/mm/yy',
+        firstDay: 1
+      });
+    });
+  }
+
+  function getNextClosedDateIndex() {
+    let maxIndex = -1;
+
+    $('#wcr-closed-dates-list')
+      .find('input[name^="wcr_closed_dates["]')
+      .each(function () {
+        const name = $(this).attr('name') || '';
+        const match = name.match(/wcr_closed_dates\[(\d+)\]/);
+
+        if (match && typeof match[1] !== 'undefined') {
+          maxIndex = Math.max(maxIndex, parseInt(match[1], 10));
+        }
+      });
+
+    return maxIndex + 1;
+  }
+
+  function bindAdminClosedDates() {
+    initAdminDatepickers();
+
+    $(document).on('click', '#wcr-add-date-row', function (e) {
+      e.preventDefault();
+
+      const $list = $('#wcr-closed-dates-list');
+      const template = $('#wcr-date-row-template').html();
+
+      if (!$list.length || !template) {
+        return;
+      }
+
+      const nextIndex = getNextClosedDateIndex();
+      const html = template.replace(/__INDEX__/g, String(nextIndex));
+      const $row = $(html);
+
+      $list.append($row);
+      initAdminDatepickers($row);
+      $row.find('.wcr-date-input').trigger('focus');
+    });
+
+    $(document).on('click', '.wcr-remove-date', function (e) {
+      e.preventDefault();
+
+      const $list = $('#wcr-closed-dates-list');
+      const $rows = $list.find('.wcr-date-row');
+      const $row = $(this).closest('.wcr-date-row');
+
+      if ($rows.length <= 1) {
+        $row.find('input[type="text"]').val('');
+        $row.find('input[type="checkbox"]').prop('checked', true);
+        return;
+      }
+
+      $row.remove();
+    });
+
+    $(document).on('change', 'input[name*="[pickup_only]"]', function () {
+      if ($(this).is(':checked')) {
+        $(this).closest('tr').find('input[name*="[closed]"]').prop('checked', false);
+      }
+    });
+
+    $(document).on('change', 'input[name*="[closed]"]', function () {
+      if ($(this).is(':checked')) {
+        $(this).closest('tr').find('input[name*="[pickup_only]"]').prop('checked', false);
+      }
+    });
+  }
+
   if (typeof wcrAdmin !== 'undefined' && wcrAdmin.isAdmin) {
+    bindAdminClosedDates();
     return;
   }
 
   applyMinDates();
   ensureProductFormFields();
   syncProductFormFields(getActiveNativeDate(), getActiveTimeValue());
+  updateProductBuilderLock();
 
   $(document).on('change', '.wcr-delivery-date-native', function () {
     const $input = $(this);
@@ -294,22 +464,57 @@ jQuery(function ($) {
     closeModal();
   });
 
-  $(document).on('click', '#wcr-open-modal, [data-wcr-open-modal="1"]', function () {
+  $(document).on('click', '#wcr-open-modal, [data-wcr-open-modal="1"], .wcr-product-builder-lock__button', function () {
     openModal();
   });
 
-  if (typeof wcrRules !== 'undefined') {
+  function shouldAutoOpenPopup() {
+    if (typeof wcrRules === 'undefined') {
+      return false;
+    }
+
+    if (wcrRules.forcePopup) {
+      return true;
+    }
+
+    // On product pages/menu builders we must not trust localStorage alone.
+    // Mobile browsers can keep localStorage from an earlier visit even when the
+    // WooCommerce session no longer has a valid date/time. In that case the
+    // popup must open again before the customer can build the menu.
+    if (productBuilderLockEnabled() && !hasValidSelection()) {
+      return true;
+    }
+
     let saved = false;
     try {
       saved = localStorage.getItem('wcr_delivery_saved') === 'yes';
     } catch (e) {}
 
-    if (wcrRules.saved === 'yes') saved = true;
-
-    if (!saved || wcrRules.forcePopup) {
-      openModal();
+    if (wcrRules.saved === 'yes') {
+      saved = true;
     }
+
+    return !saved;
   }
+
+  if (shouldAutoOpenPopup()) {
+    setTimeout(function () {
+      openModal();
+    }, 150);
+  }
+
+  // iOS/Safari can restore pages from bfcache without running ready again.
+  // Re-check when the page is shown, so the product stays locked and popup opens
+  // if date/time is still missing.
+  window.addEventListener('pageshow', function () {
+    updateProductBuilderLock();
+
+    if (shouldAutoOpenPopup()) {
+      setTimeout(function () {
+        openModal();
+      }, 150);
+    }
+  });
 
   $(document).on('submit', '.wcr-form, .wcr-box form, form:has(.wcr-box)', function () {
     try {
@@ -319,6 +524,7 @@ jQuery(function ($) {
 
   $(document).on('click', '.single_add_to_cart_button', function () {
     syncProductFormFields(getActiveNativeDate(), getActiveTimeValue());
+  updateProductBuilderLock();
   });
 
   $(document).on('submit', 'form.cart', function (e) {
@@ -329,6 +535,7 @@ jQuery(function ($) {
 
     if (!nativeDate || !timeValue) {
       e.preventDefault();
+      updateProductBuilderLock();
       openModal();
     }
   });
